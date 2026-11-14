@@ -23,7 +23,11 @@ space-repo/
 ├── docs/
 │   ├── CONTEXT.md
 │   ├── STACK-1.md
-│   └── STACK-2.md
+│   ├── STACK-2.md
+│   ├── API.md
+│   ├── FRONT.md
+│   ├── BACKEND.md
+│   └── openapi.json
 ├── data/
 │   ├── fisiologico.json
 │   ├── pdfs/
@@ -35,6 +39,12 @@ space-repo/
 │   └── descargar_modelos.py
 ├── src/
 │   ├── config.py
+│   ├── api/
+│   │   ├── main.py
+│   │   ├── salud.py
+│   │   └── sse.py
+│   ├── datos/
+│   │   └── salud.py
 │   ├── rag/
 │   │   ├── prepare_chunks.py
 │   │   ├── ingest.py
@@ -54,7 +64,7 @@ space-repo/
 
 - **`README.md`**: este documento.
 - **`requirements.txt`**: dependencias de ambas partes (`torch`, `pypdf`,
-  `pypdf`, `sentence-transformers`, `faiss-cpu`, `openai`, `huggingface_hub`,
+  `pypdf`, `sentence-transformers`, `faiss-cpu`, `openai`, `fastapi`, `uvicorn`, `huggingface_hub`,
   `chronos-forecasting`, `pandas`, `numpy`, `scikit-learn`, `statsmodels`).
 - **`.gitignore`**: evita subir al repositorio lo pesado o regenerable
   (`.venv/`, `models/`, `data/indices/`, `__pycache__/`).
@@ -62,6 +72,10 @@ space-repo/
 ### `docs/`
 
 - **`CONTEXT.md`**: descripción del reto, objetivos del proyecto e historias de usuario.
+- **`FRONT.md`**: guía para el equipo de front (tipos TypeScript, helper SSE, errores, comportamiento de la UI).
+- **`API.md`**: referencia de endpoints del backend FastAPI y eventos SSE.
+- **`BACKEND.md`**: arquitectura y lógica interna del backend (RAG, simulación de salud, configuración).
+- **`openapi.json`**: contrato OpenAPI exportado (regenerable; ver abajo).
 - **`STACK-1.md`**: documentación técnica del RAG (componentes, flujo, parámetros, limitaciones).
 - **`STACK-2.md`**: documentación técnica del stack de la parte 2
   (Chronos-2, flujo de baseline, fine-tuning y alertas).
@@ -123,6 +137,21 @@ LLM y la temperatura. Ningún otro script escribe rutas a mano.
      base en ellos y citar `[archivo, pág. N]` (o rango `N-M`).
   4. Muestra la respuesta y la lista de fuentes consultadas.
 
+### `src/api/` (backend)
+
+- **`main.py`**: API FastAPI que expone el RAG al front. Endpoints `GET /salud`,
+  `POST /preguntar` y `POST /preguntar/stream` (SSE, la respuesta llega token
+  por token). Carga el agente una vez al arrancar, habilita CORS para el front
+  (`CORS_ORIGENES` en `config.py`) y atiende una consulta a la vez. Detalle en
+  [`docs/API.md`](docs/API.md).
+
+- **`salud.py`**: endpoints `GET /tripulantes`, `GET /tripulantes/{id}/salud` y
+  `GET /tripulantes/{id}/salud/stream` (SSE) con los datos de salud para la UI.
+  Los datos vienen de `src/datos/salud.py`, que agrupa `fisiologico.json` por
+  tripulante y lo reproduce como transmisión en vivo (simulada, una lectura cada
+  `SIM_SEGUNDOS_POR_LECTURA` s).
+- **`sse.py`**: formateo de eventos Server-Sent Events compartido por los endpoints.
+
 ### `src/series/` (parte 2)
 
 - **`prueba.py`**: prueba de que Chronos-2 funciona. Carga los pesos locales,
@@ -181,6 +210,18 @@ python scripts/descargar_modelos.py
 python -m src.rag.ingest
 # 2. En LM Studio: carga Qwen3.5 4B (Instruct, Q4_K_M) y activa Developer > Start Server
 python -m src.rag.agente
+```
+
+**Backend para el front**
+
+```bash
+python -m src.api.main      # http://localhost:8000/docs
+```
+
+Si cambian los endpoints, regenera el contrato para el front:
+
+```bash
+python -c "import json; from src.api.main import app; json.dump(app.openapi(), open('docs/openapi.json','w'), ensure_ascii=False, indent=2)"
 ```
 
 **Parte 2**

@@ -1,0 +1,37 @@
+# Entorno y dependencias
+.venv/
+node_modules/
+
+# Modelos pesados (se descargan con scripts/descargar_modelos.py).
+# "models/*" (y no "models/") para que la excepción de series funcione.
+models/*
+!models/series/
+
+# Datos generados / regenerables
+data/indices/
+data/resultados/
+chunks_out/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Logs y caché
+*.log
+.cache/
+
+# Secretos
+.env
+.env.*
+
+# Builds del front
+dist/
+build/
+.next/
+
+# Editor / sistema
+.idea/
+.vscode/
+.DS_Store

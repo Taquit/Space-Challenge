@@ -1,0 +1,548 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Space Challenge API",
+    "description": "Consulta de documentación técnica (RAG) para el monitoreo de salud de astronautas.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/tripulantes": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real"
+        ],
+        "summary": "Listar",
+        "description": "Tripulantes con datos y las variables que se miden de cada uno.",
+        "operationId": "listar_tripulantes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Tripulante"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Tripulantes Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tripulantes/{usuario}/salud": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real"
+        ],
+        "summary": "Salud",
+        "description": "Foto actual: último valor de cada variable más el historial reciente.",
+        "operationId": "salud_tripulantes__usuario__salud_get",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "description": "Cuántas lecturas recientes incluir en el historial",
+              "default": 60,
+              "title": "Limite"
+            },
+            "description": "Cuántas lecturas recientes incluir en el historial"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoSalud"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tripulantes/{usuario}/salud/stream": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real"
+        ],
+        "summary": "Salud Stream",
+        "description": "Datos en vivo (Server-Sent Events). Eventos:\n\n- `snapshot`: estado inicial (mismo contenido que `GET /tripulantes/{id}/salud`).\n- `lectura`: una lectura nueva `{timestamp, valores}`, cada vez que \"ocurre\" una.\n- `fin`: ya no hay más datos (terminó la reproducción).\n- `: ping`: comentario de keep-alive, el front puede ignorarlo.",
+        "operationId": "salud_stream_tripulantes__usuario__salud_stream_get",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "default": 60,
+              "title": "Limite"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tripulantes/reiniciar-simulacion": {
+      "post": {
+        "tags": [
+          "Salud en tiempo real"
+        ],
+        "summary": "Reiniciar",
+        "description": "Reinicia la reproducción desde el inicio del día (útil para demos).",
+        "operationId": "reiniciar_tripulantes_reiniciar_simulacion_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/salud": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Salud",
+        "description": "Estado del servicio: índice cargado y LM Studio disponible.",
+        "operationId": "salud_salud_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Salud"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/preguntar": {
+      "post": {
+        "tags": [
+          "RAG"
+        ],
+        "summary": "Preguntar",
+        "description": "Respuesta completa con sus fuentes. Puede tardar (el LLM corre en CPU);\npara mostrar texto mientras se genera usa `/preguntar/stream`.",
+        "operationId": "preguntar_preguntar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Pregunta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Respuesta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/preguntar/stream": {
+      "post": {
+        "tags": [
+          "RAG"
+        ],
+        "summary": "Preguntar Stream",
+        "description": "Respuesta en streaming (Server-Sent Events). Eventos, en orden:\n\n- `fuentes`: lista de fuentes, llega primero.\n- `token`: fragmento de texto de la respuesta (varios).\n- `fin`: la respuesta terminó.\n- `error`: falló la generación.",
+        "operationId": "preguntar_stream_preguntar_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Pregunta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EstadoSalud": {
+        "properties": {
+          "usuario": {
+            "type": "string",
+            "title": "Usuario"
+          },
+          "timestamp_actual": {
+            "type": "string",
+            "title": "Timestamp Actual"
+          },
+          "actual": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Medicion"
+            },
+            "type": "object",
+            "title": "Actual",
+            "description": "Último valor de cada variable"
+          },
+          "historial": {
+            "items": {
+              "$ref": "#/components/schemas/Lectura"
+            },
+            "type": "array",
+            "title": "Historial",
+            "description": "Lecturas hasta ahora, de la más antigua a la más reciente"
+          },
+          "simulado": {
+            "type": "boolean",
+            "title": "Simulado",
+            "description": "true: reproducción de datos grabados, no un sensor real"
+          }
+        },
+        "type": "object",
+        "required": [
+          "usuario",
+          "timestamp_actual",
+          "actual",
+          "historial",
+          "simulado"
+        ],
+        "title": "EstadoSalud"
+      },
+      "Fuente": {
+        "properties": {
+          "archivo": {
+            "type": "string",
+            "title": "Archivo"
+          },
+          "paginas": {
+            "type": "string",
+            "title": "Paginas",
+            "description": "Página o rango, p. ej. '39' o '39-40'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "archivo",
+          "paginas"
+        ],
+        "title": "Fuente"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Lectura": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "valores": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Valores",
+            "examples": [
+              {
+                "pulso": 71.2,
+                "spo2": 97.5
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "valores"
+        ],
+        "title": "Lectura"
+      },
+      "Medicion": {
+        "properties": {
+          "valor": {
+            "type": "number",
+            "title": "Valor"
+          },
+          "unidad": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidad"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valor",
+          "timestamp"
+        ],
+        "title": "Medicion"
+      },
+      "Pregunta": {
+        "properties": {
+          "pregunta": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 2,
+            "title": "Pregunta",
+            "examples": [
+              "¿Cuál es el límite de dosis de radiación en toda la carrera?"
+            ]
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "description": "Fragmentos que se pasan al LLM",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "pregunta"
+        ],
+        "title": "Pregunta"
+      },
+      "Respuesta": {
+        "properties": {
+          "respuesta": {
+            "type": "string",
+            "title": "Respuesta"
+          },
+          "fuentes": {
+            "items": {
+              "$ref": "#/components/schemas/Fuente"
+            },
+            "type": "array",
+            "title": "Fuentes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "respuesta",
+          "fuentes"
+        ],
+        "title": "Respuesta"
+      },
+      "Salud": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "fragmentos_indexados": {
+            "type": "integer",
+            "title": "Fragmentos Indexados"
+          },
+          "llm_disponible": {
+            "type": "boolean",
+            "title": "Llm Disponible"
+          },
+          "modelo_llm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelo Llm"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estado",
+          "fragmentos_indexados",
+          "llm_disponible"
+        ],
+        "title": "Salud"
+      },
+      "Tripulante": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "variables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Variables"
+          },
+          "lecturas_disponibles": {
+            "type": "integer",
+            "title": "Lecturas Disponibles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "variables",
+          "lecturas_disponibles"
+        ],
+        "title": "Tripulante"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
