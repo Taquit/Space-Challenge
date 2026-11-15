@@ -80,13 +80,14 @@ def entrenar_usuario(pipeline_global, ancho, usuario, variable="pulso"):
     target = config.VARIABLES_ANALIZADAS[variable]
     if target not in ancho.columns:
         return None
-    df = preparar(ancho, usuario, pipeline_global, COLS_ENTRADA)
+    cols_var = [target]
+    df = preparar(ancho, usuario, pipeline_global, cols_var)
     if len(df) < config.MIN_ENTRENAMIENTO:
         return None
     corte = int(len(df) * 0.7)
     train, val = df.iloc[:corte].reset_index(drop=True), df.iloc[corte:].reset_index(drop=True)
 
-    fe = features.FeatureEngineer(target_cols=COLS_ENTRADA)
+    fe = features.FeatureEngineer(target_cols=cols_var)
     fe.fit(train)
     cols = [f"{c}_scaled" for c in fe.feature_names]
     ftr, fva = fe.transform(train), fe.transform(val)
@@ -107,7 +108,8 @@ def entrenar_usuario(pipeline_global, ancho, usuario, variable="pulso"):
 def analizar_usuario(pipeline, ancho, usuario, personalizado=False):
     modelo, fe, ad = pipeline["model"], pipeline["feature_engineer"], pipeline["anomaly_detector"]
     target = pipeline["target_col"]
-    df = preparar(ancho, usuario, pipeline, COLS_ENTRADA if personalizado else None)
+    cols_var = getattr(fe, "target_cols", [target])
+    df = preparar(ancho, usuario, pipeline, cols_var if personalizado else None)
     if target not in ancho.columns or len(df) <= WARMUP:
         return None
 

@@ -666,6 +666,25 @@
         "contexto": {
           "comentario": ""
         }
+      },
+      {
+        "fecha": "2026-11-15T03:30:46-06:00",
+        "forma": "A",
+        "semilla": 4268,
+        "familiarizacion": false,
+        "pruebas": {
+          "pvt": {
+            "rt_media_ms": 508.5,
+            "rt_mediana_ms": 354.5,
+            "lapsos": 1,
+            "falsos_inicios": 5,
+            "n_estimulos": 8
+          }
+        },
+        "contexto": {
+          "comentario": ""
+        },
+        "id": 11
       }
     ]
   },

@@ -71,4 +71,4 @@ FRONT_DIR = _ruta("ORBITAL_FRONT_DIR", RAIZ / "front" / "Space-Challenge-Front-m
 REENTRENAR_CADA = 30   # mediciones nuevas (filas por usuario) tras las cuales se reentrena solo
 
 # Datos de salud "en tiempo real" (reproducción simulada de fisiologico.json)
-SIM_SEGUNDOS_POR_LECTURA = 2.0   # cada cuántos segundos "ocurre" una lectura nueva
+SIM_SEGUNDOS_POR_LECTURA = float(os.environ.get("SIM_SEGUNDOS_POR_LECTURA", 10.0))   # cada cuántos segundos "ocurre" una lectura nueva
