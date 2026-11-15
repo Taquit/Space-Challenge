@@ -5,13 +5,16 @@
 
 Documentación interactiva: http://localhost:8000/docs
 """
+import asyncio
 import json
 import threading
+import time
 from contextlib import asynccontextmanager
 from typing import Literal
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,6 +30,7 @@ from src.salud import codigos
 
 estado = {}                 # agente cargado en el arranque
 candado = threading.Lock()  # una consulta a la vez: modelo local en CPU
+candado_voz = asyncio.Lock()  # una síntesis de Piper a la vez
 
 
 @asynccontextmanager
@@ -97,17 +101,33 @@ class Salud(BaseModel):
     modelo_llm: str | None = None
 
 
+_llm = {"t": -1e9, "modelo": None}   # último chequeo de LM Studio (se reutiliza unos segundos)
+_LLM_CACHE_S = 5
+
+
+def _modelo_llm(ag):
+    """Modelo cargado en LM Studio o None. Rápido: timeout corto, sin reintentos y cacheado,
+    para que /salud responda al instante aunque LM Studio esté ocupado generando o apagado."""
+    if time.monotonic() - _llm["t"] > _LLM_CACHE_S:
+        try:
+            cli = ag.client.with_options(timeout=1.5, max_retries=0)
+            modelo = config.MODELO_LLM or cli.models.list().data[0].id
+        except Exception:
+            modelo = None
+        _llm.update(t=time.monotonic(), modelo=modelo)
+    return _llm["modelo"]
+
+
 @app.get("/salud", response_model=Salud, tags=["Sistema"])
 def salud():
     """Estado del servicio: índice cargado y LM Studio disponible."""
     ag = estado["agente"]
-    try:
-        modelo = ag.modelo_llm()
+    modelo = _modelo_llm(ag)
+    if modelo:
         return Salud(estado="ok", fragmentos_indexados=len(ag.chunks),
                      llm_disponible=True, modelo_llm=modelo)
-    except Exception:
-        return Salud(estado="degradado", fragmentos_indexados=len(ag.chunks),
-                     llm_disponible=False)
+    return Salud(estado="degradado", fragmentos_indexados=len(ag.chunks),
+                 llm_disponible=False)
 
 
 @app.post("/preguntar", response_model=Respuesta, tags=["RAG"])
@@ -158,10 +178,13 @@ class Voz(BaseModel):
 
 @app.post("/voz", tags=["Voz"], response_class=Response,
           responses={200: {"content": {"audio/wav": {}}}, 503: {"description": "Voz no instalada (código 9005)"}})
-def hablar(body: Voz):
+async def hablar(body: Voz, request: Request):
     """Texto a voz con Piper (local, sin internet). Devuelve un WAV para reproducir en el front."""
     try:
-        audio = voz.sintetizar(body.texto, body.idioma)
+        async with candado_voz:   # Piper sintetiza una frase a la vez: las demás esperan aquí, sin ocupar hilos
+            if await request.is_disconnected():   # el front ya la canceló (callar/interrumpir): no se sintetiza
+                return Response(status_code=204)
+            audio = await run_in_threadpool(voz.sintetizar, body.texto, body.idioma)
     except (FileNotFoundError, ImportError):
         raise HTTPException(503, codigos.error(9005, f"Voz '{body.idioma}' no instalada. Ejecuta: python scripts/descargar_voces.py"))
     return Response(audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})

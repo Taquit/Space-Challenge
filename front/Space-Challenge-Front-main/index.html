@@ -827,8 +827,11 @@ class Component extends DCLogic {
 
   async pollSalud() {
     if (!this.live) return false;
-    const s = await OrbitalAPI.ping(3000);
+    const s = await OrbitalAPI.ping(4000);
     const wasDown = !this.state.backendUp;
+    // Un solo ping lento (CPU ocupada con el LLM o Piper) no marca "Sin conexión": hacen falta 2 fallos seguidos.
+    this.saludFallos = s ? 0 : (this.saludFallos || 0) + 1;
+    if (!s && !wasDown && this.saludFallos < 2) return false;
     this.setState({ backendUp: !!s, llmUp: !!(s && s.llm_disponible) });
     if (s && wasDown) { this.openStream(this.state.crew); this.refreshDetalle(this.state.crew); }   // volvió: reconecta (el snapshot reemplaza el historial)
     return !!s;

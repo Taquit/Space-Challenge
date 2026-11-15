@@ -9,12 +9,15 @@ Cada voz se carga la primera vez que se pide y queda en memoria.
 import io
 import threading
 import wave
+from collections import OrderedDict
 from pathlib import Path
 
 from src import config
 
 _voces = {}
 _candado = threading.Lock()   # Piper en CPU: una síntesis a la vez
+_cache = OrderedDict()        # (idioma, texto) -> WAV: los avisos que se repiten suenan al instante
+_CACHE_MAX = 64
 
 
 def ruta_modelo(idioma):
@@ -38,9 +41,16 @@ def sintetizar(texto, idioma="es"):
     if idioma not in config.VOCES or not disponible(idioma):
         raise FileNotFoundError(f"Voz '{idioma}' no instalada en {config.VOZ_DIR}")
     from piper import SynthesisConfig
-    buf = io.BytesIO()
-    with _candado:
+    clave = (idioma, texto)
+    with _candado:   # también protege la caché
+        if clave in _cache:
+            _cache.move_to_end(clave)
+            return _cache[clave]
+        buf = io.BytesIO()
         voz = _voz(idioma)
         with wave.open(buf, "wb") as w:
             voz.synthesize_wav(texto, w, syn_config=SynthesisConfig(length_scale=config.VOZ_VELOCIDAD))
-    return buf.getvalue()
+        audio = _cache[clave] = buf.getvalue()
+        if len(_cache) > _CACHE_MAX:
+            _cache.popitem(last=False)
+    return audio

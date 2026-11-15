@@ -19,11 +19,12 @@
   var piperFueraHasta = 0;   // si /voz falla, se usa la voz del navegador un rato antes de reintentar
   function api() { return (window.ORBITAL_API_BASE || '').replace(/\/$/, ''); }
   function piperUsable() { return !window.ORBITAL_FORCE_DEMO && typeof fetch !== 'undefined' && Date.now() > piperFueraHasta; }
-  function pedirAudio(texto) {
-    return fetch(api() + '/voz', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: texto, idioma: IDIOMA }) })
+  function pedirAudio(texto, signal) {
+    return fetch(api() + '/voz', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: texto, idioma: IDIOMA }), signal: signal })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
       .then(function (b) { return URL.createObjectURL(b); })
       .catch(function (e) {
+        if (e && e.name === 'AbortError') return null;   // cancelada por callar(): no es un fallo de Piper
         piperFueraHasta = Date.now() + 60000;
         console.warn('[ORBITAL voz] Piper no disponible en ' + api() + '/voz (' + (e && e.message) + '); uso la voz del navegador. ' +
           '¿Backend arrancado con el código nuevo (python -m src.api.main) y voces en models/voz/?');
@@ -134,7 +135,15 @@
       if (!disponible || (!activa && !opts.forzar)) return;   // forzar: alertas críticas, suenan aunque esté silenciado
       var limpio = limpiar(texto); if (!limpio) return;
       if (opts.interrumpir) voz.callar();
-      cola.push({ texto: limpio, opts: opts, audio: piperUsable() ? pedirAudio(limpio) : null });
+      // Frase por frase: la primera empieza a sonar mientras Piper sintetiza las siguientes.
+      // alTerminar solo va en la última (se llama una vez por aviso, no por frase).
+      var frases = limpio.split(/(?<=[.!?…])\s+/).filter(Boolean);   // corta en ". " (no en decimales como 36.5)
+      frases.forEach(function (f, i) {
+        var o = {}; for (var k in opts) o[k] = opts[k];
+        if (i < frases.length - 1) delete o.alTerminar;
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        cola.push({ texto: f, opts: o, ctrl: ctrl, audio: piperUsable() ? pedirAudio(f, ctrl && ctrl.signal) : null });
+      });
       if (!actual) siguiente();
     },
     callar: function () {
@@ -144,6 +153,7 @@
       if (audio) { try { audio.pause(); } catch (e) { } audio = null; }
       if (web) speechSynthesis.cancel();
       pendientes.forEach(function (it) {
+        if (it.ctrl && !it.url) it.ctrl.abort();   // el backend ve la desconexión y no la sintetiza
         if (it.audio && !it.url) it.audio.then(function (u) { if (u) URL.revokeObjectURL(u); });
         terminar(it);
       });
