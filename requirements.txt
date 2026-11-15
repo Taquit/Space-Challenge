@@ -22,3 +22,6 @@ statsmodels
 # API
 fastapi
 uvicorn
+
+# Voz de Orbi (TTS local). Voces: python scripts/descargar_voces.py
+piper-tts

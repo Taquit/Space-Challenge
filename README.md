@@ -44,9 +44,11 @@ space-repo/
 │   └── indices/
 ├── models/
 │   ├── chronos-2/
-│   └── bge-m3/
+│   ├── bge-m3/
+│   └── voz/                   (voces de Piper; scripts/descargar_voces.py)
 ├── scripts/
 │   ├── descargar_modelos.py
+│   ├── descargar_voces.py
 │   ├── simular_cognitivo.py
 │   └── importar_sueno.py
 ├── src/
@@ -110,12 +112,17 @@ space-repo/
 
 - **`chronos-2/`**: pesos de `amazon/chronos-2` (modelo de series de tiempo, 120M de parámetros).
 - **`bge-m3/`**: pesos de `BAAI/bge-m3` (modelo de embeddings para el RAG).
+- **`voz/`**: voces de Piper para Orbi: `es_MX-claude-high` (español de México,
+  Apache-2.0) y `en_US-ljspeech-high` (inglés de EE. UU., dataset de dominio público).
 
 ### `scripts/`
 
 - **`descargar_modelos.py`**: descarga los pesos de Chronos-2 y BGE-M3 desde
   Hugging Face a `models/` usando `snapshot_download`. **Es el único paso que
   necesita internet**; se corre una vez y después todo funciona offline.
+- **`descargar_voces.py`**: descarga las voces de Piper (`VOCES` en
+  `src/config.py`) de `rhasspy/piper-voices` a `models/voz/`. Con `--probar`
+  genera `models/voz/prueba_<idioma>.wav` para escucharlas.
 - **`importar_sueno.py`**: convierte el dataset de actigrafía de `data/sleep/` a
   `data/sueno.json` (una fila por noche: latencia, duración, eficiencia y
   medicación; promedia duplicados y asigna sujetos a `astro_1`/`astro_2`).
@@ -172,6 +179,11 @@ LLM y la temperatura. Ningún otro script escribe rutas a mano.
   tripulante y lo reproduce como transmisión en vivo (simulada, una lectura cada
   `SIM_SEGUNDOS_POR_LECTURA` s).
 - **`sse.py`**: formateo de eventos Server-Sent Events compartido por los endpoints.
+- **`POST /voz`** (en `main.py`, síntesis en `src/voz.py`): texto a voz con Piper,
+  `{"texto": "...", "idioma": "es" | "en"}` → WAV. Si la voz no está instalada
+  responde 503 con código 9005 y el front usa la voz del navegador.
+  `/preguntar` y `/preguntar/stream` aceptan `"idioma": "en"` para que Orbi
+  responda en inglés.
 
 ### `src/series/` (parte 2)
 
@@ -219,6 +231,7 @@ pregunta ──BGE-M3──> vector ──búsqueda──> top-k fragmentos ─�
 | Pesos de `BAAI/bge-m3` en `models/bge-m3/` | Embeddings del RAG | `scripts/descargar_modelos.py` (único paso con internet) |
 | Pesos de `amazon/chronos-2` en `models/chronos-2/` | Solo si vas a (re)entrenar modelos de la parte 2 | Los modelos ya entrenados por tripulante vienen en `models/series/` |
 | [LM Studio](https://lmstudio.ai) con un modelo cargado (p. ej. Qwen3.5 4B o 9B) y el servidor local activo en `http://localhost:1234/v1` | Solo el chat (`/preguntar`) | Sin LM Studio todo lo demás funciona; el chat responde 503 con código 9003 |
+| Voces de Piper en `models/voz/` | La voz de Orbi (español e inglés) | `scripts/descargar_voces.py`; sin ellas el front usa la voz del navegador |
 | PDFs en `data/pdfs/` y el índice generado con `python -m src.rag.ingest` | Búsqueda del RAG | El índice (`data/indices/`) no se sube a git: hay que generarlo |
 | Node.js y el proyecto del front | Solo si quieres la interfaz | El front **no está en este repo**; ver `docs/FRONT.md` |
 
@@ -237,6 +250,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 python scripts/descargar_modelos.py          # pesos de BGE-M3 y Chronos-2
+python scripts/descargar_voces.py --probar   # voces de Orbi (Piper, español e inglés)
 # copia los PDFs a data/pdfs/ y construye el índice:
 python -m src.rag.ingest
 # datos de demo (ya vienen en el repo; regenerar solo si cambian):
@@ -290,6 +304,7 @@ pip install -r requirements.txt
 
 # Una sola vez, con internet:
 python scripts/descargar_modelos.py
+python scripts/descargar_voces.py
 ```
 
 **Parte 1**

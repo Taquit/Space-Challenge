@@ -65,6 +65,7 @@ CATALOGO = {
     9002: ("VARIABLE_DESCONOCIDA", "La medida solicitada no existe."),
     9003: ("LLM_NO_DISPONIBLE", "LM Studio no responde."),
     9004: ("SESION_COGNITIVA_INVALIDA", "La sesión enviada no cumple el esquema."),
+    9005: ("VOZ_NO_DISPONIBLE", "La voz de Piper no está instalada (scripts/descargar_voces.py)."),
 }
 
 NIVEL_CLINICO = {"NORMAL": 2001, "VIGILAR": 2002, "ALERTA": 2010, "CRITICO": 2011}

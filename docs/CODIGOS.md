@@ -116,6 +116,7 @@ Todas las respuestas del backend de salud llevan un `codigo` numérico para que 
 | 9002 | `VARIABLE_DESCONOCIDA` | La medida solicitada no existe. |
 | 9003 | `LLM_NO_DISPONIBLE` | LM Studio no responde. |
 | 9004 | `SESION_COGNITIVA_INVALIDA` | La sesión enviada no cumple el esquema (HTTP 422). |
+| 9005 | `VOZ_NO_DISPONIBLE` | La voz de Piper del idioma pedido no está instalada (HTTP 503; `python scripts/descargar_voces.py`). |
 
 ## Ejemplos
 

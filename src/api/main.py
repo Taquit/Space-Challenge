@@ -8,16 +8,17 @@ Documentación interactiva: http://localhost:8000/docs
 import json
 import threading
 from contextlib import asynccontextmanager
+from typing import Literal
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from openai import APIConnectionError
 from pydantic import BaseModel, Field
 
-from src import config
+from src import config, voz
 from src.api.salud import datos_cognitivo as router_datos_cognitivo
 from src.api.salud import monitor as router_salud_monitor
 from src.api.salud import router as router_salud
@@ -56,6 +57,7 @@ class Pregunta(BaseModel):
     top_k: int = Field(config.TOP_K, ge=1, le=10, description="Fragmentos que se pasan al LLM")
     usuario: str | None = Field(None, description="Tripulante sobre el que se pregunta (activa el resumen y la aptitud)")
     variables: list[str] | None = Field(None, description="Medidas seleccionadas (p. ej. ['pulso']); vacío = todas")
+    idioma: Literal["es", "en"] = Field("es", description="Idioma de la respuesta")
 
 
 def contexto_fisio(body):
@@ -109,7 +111,7 @@ def preguntar(body: Pregunta):
     ag = estado["agente"]
     try:
         with candado:
-            texto, fuentes = ag.preguntar(body.pregunta, body.top_k, contexto_fisio(body))
+            texto, fuentes = ag.preguntar(body.pregunta, body.top_k, contexto_fisio(body), body.idioma)
     except APIConnectionError:
         raise HTTPException(503, codigos.error(9003, "LM Studio no responde. Activa el servidor (lms server start)."))
     return Respuesta(respuesta=texto, fuentes=fuentes)
@@ -131,7 +133,7 @@ def preguntar_stream(body: Pregunta):
     def eventos():
         with candado:
             try:
-                msgs, frags = ag.preparar(body.pregunta, body.top_k, ctx)
+                msgs, frags = ag.preparar(body.pregunta, body.top_k, ctx, body.idioma)
                 yield sse("fuentes", ag.fuentes_de(frags))
                 for t in ag.generar(msgs):
                     yield sse("token", t)
@@ -141,6 +143,22 @@ def preguntar_stream(body: Pregunta):
 
     return StreamingResponse(eventos(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+class Voz(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=2000, examples=["Hola, soy Orbi. Tus signos vitales se ven bien."])
+    idioma: Literal["es", "en"] = Field("es", description="es = español de México, en = inglés")
+
+
+@app.post("/voz", tags=["Voz"], response_class=Response,
+          responses={200: {"content": {"audio/wav": {}}}, 503: {"description": "Voz no instalada (código 9005)"}})
+def hablar(body: Voz):
+    """Texto a voz con Piper (local, sin internet). Devuelve un WAV para reproducir en el front."""
+    try:
+        audio = voz.sintetizar(body.texto, body.idioma)
+    except (FileNotFoundError, ImportError):
+        raise HTTPException(503, codigos.error(9005, f"Voz '{body.idioma}' no instalada. Ejecuta: python scripts/descargar_voces.py"))
+    return Response(audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
 # Front estático de ORBITAL (carpeta con index.html), servido en "/" desde el mismo origen: sin CORS.

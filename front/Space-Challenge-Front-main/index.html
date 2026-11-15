@@ -10,6 +10,8 @@
 <script>window.__resources = {};</script>
 <script src="js/vendor/react.production.min.js"></script>
 <script src="js/vendor/react-dom.production.min.js"></script>
+<script src="js/i18n-en.js"></script>
+<script src="js/i18n.js"></script><!-- antes de support.js: traduce la plantilla antes del arranque -->
 <script src="js/support.js"></script>
 <script>
   // Dónde vive el backend de Space-Challenge. Cámbialo con ?api=<url>.
@@ -41,6 +43,7 @@
         <button onClick="{{ retry }}" style="border:0;background:none;padding:0 0 0 4px;font-size:12px;font-weight:600;color:var(--orbi);cursor:pointer">{{ retryLabel }}</button>
       </sc-if>
     </div>
+    <button onClick="{{ toggleLang }}" aria-label="{{ langTitle }}" title="{{ langTitle }}" style="height:32px;min-width:32px;padding:0 9px;border-radius:999px;border:1px solid var(--hairline);background:var(--surface-translucent);backdrop-filter:blur(20px);font-family:'Space Grotesk';font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--ink-soft);cursor:pointer">{{ langLabel }}</button>
     <button onClick="{{ openHelp }}" aria-label="Ayuda" title="Cómo usar ORBITAL" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--hairline);background:var(--surface-translucent);backdrop-filter:blur(20px);font-family:'Space Grotesk';font-size:14px;color:var(--ink-soft);cursor:pointer">?</button>
   </div>
 
@@ -1196,7 +1199,8 @@ class Component extends DCLogic {
       greeting: `${hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'}, ${first}.`,
       homeLine, homeDot: offline || connecting ? 'var(--state-idle)' : A.sev <= 0 ? (A.sev === -1 ? 'var(--state-idle)' : 'var(--state-ok)') : SEV_VAR[A.sev], homeDotRing: A.sev > 0 ? tint(A.sev) : 'transparent',
       onStatusClick: () => { const rv = A.reasons[0]; if (rv) this.goDial(order.indexOf(rv.view)); openDash(); },
-      toggleSpeak: () => this.toggleMute(summary), speakLabel: S.muted ? 'Activar la voz de Orbi' : 'Silenciar a Orbi', speakIcon: S.muted ? IC.mute : IC.speaker, speaking: S.vozOn && S.view === 'home', caption: S.caption,
+      toggleSpeak: () => this.toggleMute(summary),
+      langLabel: window.OrbitalI18n && OrbitalI18n.idioma === 'en' ? 'EN' : 'ES', langTitle: window.OrbitalI18n && OrbitalI18n.idioma === 'en' ? 'Idioma: inglés · cambiar a español' : 'Idioma: español · switch to English', toggleLang: () => window.OrbitalI18n && OrbitalI18n.alternar(), speakLabel: S.muted ? 'Activar la voz de Orbi' : 'Silenciar a Orbi', speakIcon: S.muted ? IC.mute : IC.speaker, speaking: S.vozOn && S.view === 'home', caption: S.caption,
       crewList, dialItems, dialLabel: VIEWS[activeKey].label.toUpperCase(),
       dialOpacity: inChat ? 0 : 1, dialPE: inChat || inDash ? 'none' : 'auto', dialY: inDash ? '40px' : '0px', dialHintO: S.dialPos === 0 && !localStorage.getItem('orbital.dialed') ? 1 : 0,
       dialDown: e => { this.dx = e.clientX; this.moved = false; },

@@ -110,6 +110,8 @@
     /* Chat con Orbi (SSE). body: {pregunta, usuario?, variables?}. handlers: {onFuentes, onToken, onFin, onError}. */
     preguntarStream: function (body, handlers, opts) {
       handlers = handlers || {}; opts = opts || {};
+      // Orbi responde en el idioma de la interfaz (js/i18n.js).
+      if (window.OrbitalI18n && !body.idioma) body = Object.assign({}, body, { idioma: window.OrbitalI18n.idioma });
       return sse('/preguntar/stream', function (ev, d) {
         if (ev === 'fuentes' && handlers.onFuentes) handlers.onFuentes(d);
         else if (ev === 'token' && handlers.onToken) handlers.onToken(d);

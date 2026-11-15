@@ -25,8 +25,13 @@ SYSTEM = (
     "documentación que se te dan. Sé muy conciso: una o dos oraciones, solo el dato "
     "pedido, sin contexto extra ni repetir la pregunta. Termina con la cita entre "
     "corchetes, por ejemplo [archivo.pdf, pág. 3]. Si la respuesta no está en los "
-    "fragmentos, responde: 'No está en la documentación.' Responde en español."
+    "fragmentos, responde: 'No está en la documentación.'"
 )
+IDIOMA = {
+    "es": " Responde en español.",
+    "en": (" Answer in English, even though the fragments and the crew data are in Spanish. If the answer is not in "
+           "the fragments, reply: 'It is not in the documentation.' Keep the citation in brackets as given."),
+}
 
 
 SYSTEM_FISIO = (
@@ -87,7 +92,7 @@ def formatear(frags):
     return "\n\n".join(f"[{f['archivo']}, pág. {pags(f)}]\n{f['texto']}" for f in frags)
 
 
-def preparar(pregunta, k=config.TOP_K, contexto_fisio=""):
+def preparar(pregunta, k=config.TOP_K, contexto_fisio="", idioma="es"):
     """Recuperación SIEMPRE obligatoria: no dependemos de que el modelo decida buscar.
     `contexto_fisio`: texto de `estado_fisiologico()` si la pregunta es sobre un tripulante.
     Devuelve (mensajes para el LLM, fragmentos usados)."""
@@ -95,7 +100,7 @@ def preparar(pregunta, k=config.TOP_K, contexto_fisio=""):
     # Los datos del tripulante van DESPUÉS de los fragmentos, junto a la pregunta: el modelo pequeño atiende más a lo último.
     fisio = f"\n\nDatos del tripulante que pregunta (calculados por el sistema):\n{contexto_fisio}" if contexto_fisio else ""
     msgs = [
-        {"role": "system", "content": SYSTEM + (SYSTEM_FISIO if contexto_fisio else "")},
+        {"role": "system", "content": SYSTEM + (SYSTEM_FISIO if contexto_fisio else "") + IDIOMA.get(idioma, IDIOMA["es"])},
         {"role": "user",
          "content": f"Fragmentos:\n{formatear(frags)}{fisio}\n\nPregunta: {pregunta}"},
     ]
@@ -120,9 +125,9 @@ def generar(msgs):
             yield ev.choices[0].delta.content
 
 
-def preguntar(pregunta, k=config.TOP_K, contexto_fisio=""):
+def preguntar(pregunta, k=config.TOP_K, contexto_fisio="", idioma="es"):
     """Respuesta completa. Devuelve (texto, fuentes)."""
-    msgs, frags = preparar(pregunta, k, contexto_fisio)
+    msgs, frags = preparar(pregunta, k, contexto_fisio, idioma)
     return "".join(generar(msgs)), fuentes_de(frags)
 
 

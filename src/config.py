@@ -60,6 +60,15 @@ NOTIFICACIONES = RAIZ / "data" / "resultados" / "notificaciones.json"
 MIN_ENTRENAMIENTO = 60   # mediciones mínimas del usuario para entrenar su propio modelo
 
 
+# Voz de Orbi (Piper, TTS neuronal local y sin internet). Las descarga scripts/descargar_voces.py.
+VOZ_DIR = RAIZ / "models" / "voz"
+VOCES = {   # idioma -> (repo de Hugging Face rhasspy/piper-voices, ruta del modelo sin extensión)
+    "es": "es/es_MX/claude/high/es_MX-claude-high",     # español de México, femenina, cálida (Apache-2.0)
+    "en": "en/en_US/ljspeech/high/en_US-ljspeech-high", # inglés de EE. UU., femenina (dataset de dominio público)
+}
+VOZ_VELOCIDAD = 1.05   # length_scale de Piper: >1 habla un poco más pausado (suena más cercano)
+
+
 # API (FastAPI)
 API_HOST = "127.0.0.1"   # "0.0.0.0" para exponerla en la red local
 API_PORT = 8000
