@@ -6,8 +6,7 @@ RAIZ = Path(__file__).resolve().parent.parent   # scripts/ -> raíz del proyecto
 MODELS = RAIZ / "models"
 
 MODELOS = {
-    "BAAI/bge-m3": {"ignore_patterns": ["onnx/*", "imgs/*", "*.onnx", "*.onnx_data"]},
-    "amazon/chronos-2": {},
+    "BAAI/bge-m3": {"ignore_patterns": ["onnx/*", "imgs/*", "*.onnx", "*.onnx_data"]}
 }
 
 for repo, opciones in MODELOS.items():
