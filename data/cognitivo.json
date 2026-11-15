@@ -1119,6 +1119,25 @@
         "contexto": {
           "comentario": ""
         }
+      },
+      {
+        "fecha": "2026-11-15T04:56:02-06:00",
+        "forma": "A",
+        "semilla": 4291,
+        "familiarizacion": false,
+        "pruebas": {
+          "pvt": {
+            "rt_media_ms": 317.2,
+            "rt_mediana_ms": 305.2,
+            "lapsos": 0,
+            "falsos_inicios": 1,
+            "n_estimulos": 8
+          }
+        },
+        "contexto": {
+          "comentario": ""
+        },
+        "id": 14
       }
     ]
   }

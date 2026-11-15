@@ -1,11 +1,3 @@
-"""
-Módulo de Detección de Anomalías y Clasificación de Desviaciones Fisiológicas
-=============================================================================
-Implementa métodos basados en residuos, intervalos de predicción,
-detección no supervisada (Isolation Forest, Local Outlier Factor) y
-umbrales adaptativos personalizados por participante.
-"""
-
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
@@ -27,38 +19,30 @@ class AnomalyDetector:
         self.is_fitted = False
 
     def fit(self, y_true: np.ndarray, y_pred: np.ndarray, X_features: np.ndarray = None, subject_ids: np.ndarray = None):
-        """
-        Ajusta la distribución de residuos y detectores multidimensionales
-        con datos de entrenamiento y validación.
-        """
-        residuals = y_true - y_pred
-        self.mean_residual = float(np.mean(residuals))
-        self.std_residual = float(np.std(residuals))
+        res = y_true - y_pred
+        self.mean_residual = float(np.mean(res))
+        self.std_residual = float(np.std(res))
         if self.std_residual < 1e-4:
             self.std_residual = 1.0
             
-        self.residual_history = residuals.tolist()
+        self.residual_history = res.tolist()
 
-        # Ajuste de línea base individual por participante
         if subject_ids is not None:
-            unique_subjects = np.unique(subject_ids)
-            for sid in unique_subjects:
-                mask = (subject_ids == sid)
-                subj_y = y_true[mask]
-                subj_res = residuals[mask]
-                self.subject_baselines[sid] = {
-                    'median': float(np.median(subj_y)),
-                    'std': float(np.std(subj_y)),
-                    'res_mean': float(np.mean(subj_res)),
-                    'res_std': float(np.std(subj_res)) if np.std(subj_res) > 1e-4 else self.std_residual
+            for s in np.unique(subject_ids):
+                mask = (subject_ids == s)
+                sy = y_true[mask]
+                sr = res[mask]
+                self.subject_baselines[s] = {
+                    'median': float(np.median(sy)),
+                    'std': float(np.std(sy)),
+                    'res_mean': float(np.mean(sr)),
+                    'res_std': float(np.std(sr)) if np.std(sr) > 1e-4 else self.std_residual
                 }
 
-        # Ajuste de Isolation Forest y LOF sobre espacio de residuos y características
         if X_features is not None:
-            # Matriz combinada: features clave + residuo
-            combined = np.hstack([X_features, residuals.reshape(-1, 1)])
-            self.iso_forest.fit(combined)
-            self.lof.fit(combined)
+            comb = np.hstack([X_features, res.reshape(-1, 1)])
+            self.iso_forest.fit(comb)
+            self.lof.fit(comb)
 
         self.is_fitted = True
         return self
@@ -74,17 +58,11 @@ class AnomalyDetector:
         history_len: int = 100,
         feature_vec: np.ndarray = None
     ) -> dict:
-        """
-        Evalúa una única medición One-Step-Ahead y clasifica su desviación.
-        Retorna None si la medición es NORMAL, o un diccionario estructurado si es ADVERTENCIA o ANOMALIA.
-        """
-        # Exigir suficientes observaciones válidas y descartar si la calidad de señal está degradada
         if history_len < 10 or signal_quality == "DEGRADED":
             return None
 
-        abs_error = abs(actual_value - predicted_value)
+        err = abs(actual_value - predicted_value)
         
-        # Parámetros individuales del participante o globales
         if subject_id in self.subject_baselines:
             sb = self.subject_baselines[subject_id]
             sigma = sb['res_std']
@@ -93,44 +71,35 @@ class AnomalyDetector:
             sigma = self.std_residual
             mu = self.mean_residual
 
-        # Residuo estandarizado (Z-score)
-        std_residual = ( (actual_value - predicted_value) - mu ) / sigma
-        abs_z = abs(std_residual)
+        z = ((actual_value - predicted_value) - mu) / sigma
+        az = abs(z)
 
-        # Intervalo de predicción individual
-        k_interval = 2.0  # ~95.45% de cobertura
-        expected_lower = round(float(predicted_value - k_interval * sigma), 2)
-        expected_upper = round(float(predicted_value + k_interval * sigma), 2)
+        low = round(float(predicted_value - 2.0 * sigma), 2)
+        upp = round(float(predicted_value + 2.0 * sigma), 2)
 
-        # Error porcentual (cuando el valor predicho no es nulo)
-        if abs(predicted_value) > 1e-3:
-            dev_percentage = round(float((abs_error / abs(predicted_value)) * 100.0), 2)
-        else:
-            dev_percentage = None
+        dev_pct = round(float((err / abs(predicted_value)) * 100.0), 2) if abs(predicted_value) > 1e-3 else None
 
-        # Evaluación multidimensional complementaria si hay feature_vec
-        iso_anomaly = False
+        iso_anom = False
         if feature_vec is not None and self.is_fitted:
             comb_step = np.hstack([feature_vec.reshape(1, -1), np.array([[actual_value - predicted_value]])])
             if self.iso_forest.predict(comb_step)[0] == -1:
-                iso_anomaly = True
+                iso_anom = True
 
-        # Clasificación del estado
-        if abs_z >= U["MODELO_Z_ANOMALIA"] or (abs_z >= U["MODELO_Z_ANOMALIA_ISO"] and iso_anomaly):
-            status = "ANOMALIA"
-            confidence = round(min(0.99, 0.85 + (abs_z - 3.0) * 0.04), 2)
-            explanation = "El valor observado supera el intervalo de predicción individual con significancia estadística mayor a 3 sigmas."
-        elif abs_z >= U["MODELO_Z_ADVERTENCIA"]:
-            status = "ADVERTENCIA"
-            confidence = round(min(0.90, 0.70 + (abs_z - 2.0) * 0.15), 2)
-            explanation = "Desviación relevante respecto a la línea base e intervalo de pronóstico del participante que requiere seguimiento."
+        if az >= U["MODELO_Z_ANOMALIA"] or (az >= U["MODELO_Z_ANOMALIA_ISO"] and iso_anom):
+            stat = "ANOMALIA"
+            conf = round(min(0.99, 0.85 + (az - 3.0) * 0.04), 2)
+            msg = "El valor observado supera el intervalo de predicción individual con significancia estadística mayor a 3 sigmas."
+        elif az >= U["MODELO_Z_ADVERTENCIA"]:
+            stat = "ADVERTENCIA"
+            conf = round(min(0.90, 0.70 + (az - 2.0) * 0.15), 2)
+            msg = "Desviación relevante respecto a la línea base e intervalo de pronóstico del participante que requiere seguimiento."
         else:
-            status = "NORMAL"
+            stat = "NORMAL"
 
-        if status == "NORMAL":
+        if stat == "NORMAL":
             return None
 
-        deviation_type = "ABOVE_EXPECTED" if actual_value > predicted_value else "BELOW_EXPECTED"
+        dev_t = "ABOVE_EXPECTED" if actual_value > predicted_value else "BELOW_EXPECTED"
 
         return {
             "timestamp": timestamp,
@@ -139,15 +108,15 @@ class AnomalyDetector:
             "actual_value": round(float(actual_value), 2),
             "predicted_value": round(float(predicted_value), 2),
             "expected_range": {
-                "lower": expected_lower,
-                "upper": expected_upper
+                "lower": low,
+                "upper": upp
             },
-            "absolute_error": round(float(abs_error), 2),
-            "standardized_residual": round(float(std_residual), 2),
-            "deviation_percentage": dev_percentage,
-            "status": status,
-            "deviation_type": deviation_type,
-            "confidence": confidence,
-            "explanation": explanation,
+            "absolute_error": round(float(err), 2),
+            "standardized_residual": round(float(z), 2),
+            "deviation_percentage": dev_pct,
+            "status": stat,
+            "deviation_type": dev_t,
+            "confidence": conf,
+            "explanation": msg,
             "model_name": model_name
         }

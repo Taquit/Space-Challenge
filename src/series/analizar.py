@@ -1,15 +1,3 @@
-"""Puente entre data/fisiologico.json y el modelo One-Step-Ahead de NasaSpaceApps-Model.
-
-Convierte el JSON (formato largo: usuario/timestamp/variable/valor) al formato que
-espera el modelo, predice cada medición con las anteriores y escribe un JSON de
-desviaciones (ADVERTENCIA / ANOMALIA) con el esquema de `json_generator`.
-
-Cada usuario tiene su propio modelo por variable (models/series/usuarios/<usuario>_<variable>.joblib),
-entrenado solo con sus datos. Salida: {usuario: {variable: reporte}}.
-
-Uso:  python -m src.series.analizar [--usuario astro_1] [--entrada ruta.json] [--entrenar]
-(el reentrenamiento es automático cada config.REENTRENAR_CADA mediciones nuevas; --entrenar lo fuerza)
-"""
 import argparse
 import json
 import datetime
@@ -23,14 +11,12 @@ from src import config
 from src.datos.salud import UNIDADES
 from src.series import anomaly_detection, features, json_generator, models
 
-WARMUP = 15              # mismas mediciones mínimas que predict_one_step_ahead.py
-BASELINE_N = 15          # mediciones iniciales del usuario que fijan su línea base
+WARMUP = 15
+BASELINE_N = 15
 FUENTE = "data/fisiologico.json"
 
 
 def cargar_modelo(ruta=config.MODELO_SERIES):
-    """Carga el pipeline guardado. Se pickleó con los módulos `src.features`,
-    `src.models` y `src.anomaly_detection`; aquí viven en `src.series`."""
     sys.modules.setdefault("src.features", features)
     sys.modules.setdefault("src.models", models)
     sys.modules.setdefault("src.anomaly_detection", anomaly_detection)
@@ -40,34 +26,31 @@ def cargar_modelo(ruta=config.MODELO_SERIES):
 
 
 def cargar_json(ruta=config.FISIOLOGICO):
-    """JSON largo -> DataFrame ancho (una fila por timestamp) por usuario, con las columnas del modelo."""
     df = pd.read_json(ruta)
     if df.empty:
         return df
     df["columna"] = df["variable"].map(config.VARIABLES_MODELO)
     df = df.dropna(subset=["columna"])
-    ancho = (df.pivot_table(index=["usuario", "timestamp"], columns="columna", values="valor")
+    pivot = (df.pivot_table(index=["usuario", "timestamp"], columns="columna", values="valor")
                .reset_index().sort_values(["usuario", "timestamp"]))
-    return ancho
+    return pivot
 
 
-COLS_ENTRADA = features.PHYSIO_TARGETS + ["spo2"]   # columnas que usan como entrada los modelos personales
+COLS_ENTRADA = features.PHYSIO_TARGETS + ["spo2"]
 
 
 def preparar(ancho, usuario, pipeline_global, cols=None):
-    """DataFrame de un usuario listo para el modelo. Se usan las variables como entrada;
-    las que el JSON no trae se rellenan con la mediana de entrenamiento global (constante)."""
     fe = pipeline_global["feature_engineer"]
-    cols = cols or fe.target_cols
-    df = ancho[ancho["usuario"] == usuario].reset_index(drop=True)
-    global_med = pd.DataFrame(fe.subject_baselines).T.median()
-    for c in cols:
-        if c not in df.columns:
-            df[c] = global_med[c]
-    df[cols] = df[cols].ffill().bfill()
-    df["subject_id"] = usuario
-    df["signal_quality"] = "GOOD"
-    return df
+    c_list = cols or fe.target_cols
+    sub_df = ancho[ancho["usuario"] == usuario].reset_index(drop=True)
+    med = pd.DataFrame(fe.subject_baselines).T.median()
+    for c in c_list:
+        if c not in sub_df.columns:
+            sub_df[c] = med[c]
+    sub_df[c_list] = sub_df[c_list].ffill().bfill()
+    sub_df["subject_id"] = usuario
+    sub_df["signal_quality"] = "GOOD"
+    return sub_df
 
 
 def ruta_modelo_usuario(usuario, variable="pulso"):
@@ -75,110 +58,107 @@ def ruta_modelo_usuario(usuario, variable="pulso"):
 
 
 def entrenar_usuario(pipeline_global, ancho, usuario, variable="pulso"):
-    """Entrena un modelo SOLO con los datos de `usuario` para `variable` (70% entrena el predictor
-    y el escalador; el 30% restante calibra el detector de anomalías). Devuelve el pipeline o None."""
     target = config.VARIABLES_ANALIZADAS[variable]
     if target not in ancho.columns:
         return None
-    cols_var = [target]
-    df = preparar(ancho, usuario, pipeline_global, cols_var)
+    c_var = [target]
+    df = preparar(ancho, usuario, pipeline_global, c_var)
     if len(df) < config.MIN_ENTRENAMIENTO:
         return None
-    corte = int(len(df) * 0.7)
-    train, val = df.iloc[:corte].reset_index(drop=True), df.iloc[corte:].reset_index(drop=True)
+    split = int(len(df) * 0.7)
+    d_train, d_val = df.iloc[:split].reset_index(drop=True), df.iloc[split:].reset_index(drop=True)
 
-    fe = features.FeatureEngineer(target_cols=cols_var)
-    fe.fit(train)
-    cols = [f"{c}_scaled" for c in fe.feature_names]
-    ftr, fva = fe.transform(train), fe.transform(val)
-    modelo = type(pipeline_global["model"])()          # misma familia que el modelo ganador
-    modelo.fit(ftr[cols].values, ftr[f"{target}_target"].values)
+    fe = features.FeatureEngineer(target_cols=c_var)
+    fe.fit(d_train)
+    col_names = [f"{c}_scaled" for c in fe.feature_names]
+    f_tr, f_val = fe.transform(d_train), fe.transform(d_val)
+    mod = type(pipeline_global["model"])()
+    mod.fit(f_tr[col_names].values, f_tr[f"{target}_target"].values)
 
-    ad = anomaly_detection.AnomalyDetector(target_variable=target, unit=UNIDADES[variable])
-    ad.fit(fva[f"{target}_target"].values, modelo.predict(fva[cols].values), fva[cols].values, fva["subject_id"].values)
+    det = anomaly_detection.AnomalyDetector(target_variable=target, unit=UNIDADES[variable])
+    det.fit(f_val[f"{target}_target"].values, mod.predict(f_val[col_names].values), f_val[col_names].values, f_val["subject_id"].values)
 
-    pipe = dict(pipeline_global, model=modelo, feature_engineer=fe, anomaly_detector=ad, target_col=target,
+    pipe = dict(pipeline_global, model=mod, feature_engineer=fe, anomaly_detector=det, target_col=target,
                 variable=variable, model_name=f"{pipeline_global['model_name']} (personalizado)",
-                n_entrenamiento=len(train), n_total=len(df))
+                n_entrenamiento=len(d_train), n_total=len(df))
     config.MODELOS_USUARIO.mkdir(parents=True, exist_ok=True)
     joblib.dump(pipe, ruta_modelo_usuario(usuario, variable))
     return pipe
 
 
 def analizar_usuario(pipeline, ancho, usuario, personalizado=False):
-    modelo, fe, ad = pipeline["model"], pipeline["feature_engineer"], pipeline["anomaly_detector"]
+    mod, fe, det = pipeline["model"], pipeline["feature_engineer"], pipeline["anomaly_detector"]
     target = pipeline["target_col"]
-    cols_var = getattr(fe, "target_cols", [target])
-    df = preparar(ancho, usuario, pipeline, cols_var if personalizado else None)
+    c_var = getattr(fe, "target_cols", [target])
+    df = preparar(ancho, usuario, pipeline, c_var if personalizado else None)
     if target not in ancho.columns or len(df) <= WARMUP:
         return None
 
     if not personalizado:
-        # Modelo global: línea base = mediana de las primeras mediciones del propio usuario.
         fe.subject_baselines[usuario] = df[fe.target_cols].head(BASELINE_N).median().to_dict()
     feat = fe.transform(df, subject_id=usuario)
-    cols = [f"{c}_scaled" for c in fe.feature_names]
+    col_names = [f"{c}_scaled" for c in fe.feature_names]
 
-    normal = adv = anom = 0
+    ok_cnt = adv_cnt = anom_cnt = 0
     desv = []
     for i in range(WARMUP, len(df)):
-        x = feat.iloc[[i]][cols].values
-        rec = ad.evaluate_measurement(
-            actual_value=float(df.loc[i, target]), predicted_value=float(modelo.predict(x)[0]),
+        x_val = feat.iloc[[i]][col_names].values
+        val_real = float(df.loc[i, target])
+        val_pred = float(mod.predict(x_val)[0])
+        rec = det.evaluate_measurement(
+            actual_value=val_real, predicted_value=val_pred,
             timestamp=str(df.loc[i, "timestamp"]), subject_id=usuario,
             model_name=pipeline["model_name"], signal_quality="GOOD",
-            history_len=i, feature_vec=x[0])
+            history_len=i, feature_vec=x_val[0])
         if rec is None:
-            normal += 1
+            ok_cnt += 1
         else:
-            anom += rec["status"] == "ANOMALIA"
-            adv += rec["status"] != "ANOMALIA"
+            anom_cnt += (rec["status"] == "ANOMALIA")
+            adv_cnt += (rec["status"] != "ANOMALIA")
             desv.append(rec)
-    return dict(total=len(df) - WARMUP, normal=normal, adv=adv, anom=anom, desv=desv)
+    return dict(total=len(df) - WARMUP, normal=ok_cnt, adv=adv_cnt, anom=anom_cnt, desv=desv)
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--entrada", default=str(config.FISIOLOGICO))
-    ap.add_argument("--usuario", help="por defecto, todos los usuarios")
-    ap.add_argument("--entrenar", action="store_true",
-                    help="fuerza el reentrenamiento (normalmente es automático al llegar datos nuevos)")
-    args = ap.parse_args()
+    p = argparse.ArgumentParser()
+    p.add_argument("--entrada", default=str(config.FISIOLOGICO))
+    p.add_argument("--usuario", help="filtrar por usuario")
+    p.add_argument("--entrenar", action="store_true", help="forzar reentrenamiento")
+    args = p.parse_args()
 
-    pipeline = cargar_modelo()
-    ancho = cargar_json(args.entrada)
-    usuarios = [args.usuario] if args.usuario else sorted(ancho["usuario"].unique()) if len(ancho) else []
+    pipe_base = cargar_modelo()
+    df_ancho = cargar_json(args.entrada)
+    usrs = [args.usuario] if args.usuario else sorted(df_ancho["usuario"].unique()) if len(df_ancho) else []
     config.DESVIACIONES.parent.mkdir(parents=True, exist_ok=True)
-    salida = {}
-    for u in usuarios:
-        n = int((ancho["usuario"] == u).sum())
-        for variable in config.VARIABLES_ANALIZADAS:
-            ruta = ruta_modelo_usuario(u, variable)
-            pipe_u = cargar_modelo(ruta) if ruta.exists() else None
-            nuevas = n - (pipe_u["n_total"] if pipe_u else 0)
-            # Reentrena si se fuerza, si aún no hay modelo propio o si llegaron suficientes datos nuevos.
-            if args.entrenar or pipe_u is None or nuevas >= config.REENTRENAR_CADA:
-                nuevo = entrenar_usuario(pipeline, ancho, u, variable)
+    res = {}
+    for u in usrs:
+        n_filas = int((df_ancho["usuario"] == u).sum())
+        for v in config.VARIABLES_ANALIZADAS:
+            r_mod = ruta_modelo_usuario(u, v)
+            m_usr = cargar_modelo(r_mod) if r_mod.exists() else None
+            nuevos_datos = n_filas - (m_usr["n_total"] if m_usr else 0)
+            if args.entrenar or m_usr is None or nuevos_datos >= config.REENTRENAR_CADA:
+                nuevo = entrenar_usuario(pipe_base, df_ancho, u, v)
                 if nuevo:
-                    pipe_u = nuevo
-                    print(f"{u}/{variable}: modelo personal (re)entrenado con {n} mediciones")
-                elif pipe_u is None:
-                    print(f"{u}/{variable}: pocos datos para entrenar (<{config.MIN_ENTRENAMIENTO}); se omite")
-            if pipe_u is None:
+                    m_usr = nuevo
+                    print(f"{u}/{v}: modelo reentrenado ({n_filas} filas)")
+                elif m_usr is None:
+                    print(f"{u}/{v}: faltan datos para entrenar (<{config.MIN_ENTRENAMIENTO})")
+            if m_usr is None:
                 continue
-            r = analizar_usuario(pipe_u, ancho, u, personalizado=True)
-            if r is None:
-                print(f"{u}/{variable}: faltan datos (se necesitan más de {WARMUP} mediciones).")
+            out = analizar_usuario(m_usr, df_ancho, u, personalizado=True)
+            if out is None:
+                print(f"{u}/{v}: faltan datos (se ocupan >{WARMUP})")
                 continue
-            texto = json_generator.build_and_validate_json_output(
-                model_name=pipe_u["model_name"], subject_id=u, data_source=FUENTE,
+            js = json_generator.build_and_validate_json_output(
+                model_name=m_usr["model_name"], subject_id=u, data_source=FUENTE,
                 signal_quality="GOOD", generated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                total_analyzed=r["total"], normal_count=r["normal"], warning_count=r["adv"],
-                anomalous_count=r["anom"], deviations_list=r["desv"], output_path=None)
-            salida.setdefault(u, {})[variable] = json.loads(texto)
-            print(f"{u}/{variable}: {r['total']} analizadas, {r['adv']} advertencias, {r['anom']} anomalías")
-    config.DESVIACIONES.write_text(json.dumps(salida, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"Resultado en {config.DESVIACIONES}")
+                total_analyzed=out["total"], normal_count=out["normal"], warning_count=out["adv"],
+                anomalous_count=out["anom"], deviations_list=out["desv"], output_path=None)
+            res.setdefault(u, {})[v] = json.loads(js)
+            print(f"{u}/{v}: {out['total']} analizadas, {out['adv']} adv, {out['anom']} anom")
+    config.DESVIACIONES.write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"Listo -> {config.DESVIACIONES}")
 
 
 if __name__ == "__main__":

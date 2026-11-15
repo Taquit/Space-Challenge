@@ -1,4 +1,4 @@
-"""Descarga los pesos de los modelos. Correr UNA vez, con internet."""
+"""Descarga los pesos de los modelos."""
 from pathlib import Path
 from huggingface_hub import snapshot_download
 

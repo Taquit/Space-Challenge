@@ -1,4 +1,3 @@
-"""Agente RAG en Python puro. Requiere LM Studio con el servidor local activo."""
 import json
 import os
 
@@ -15,10 +14,8 @@ indice = faiss.read_index(str(config.INDICE))
 chunks = json.loads(config.CHUNKS.read_text(encoding="utf-8"))
 client = OpenAI(base_url=config.LMSTUDIO_URL, api_key="lm-studio")
 
-
 def modelo_llm():
     return config.MODELO_LLM or client.models.list().data[0].id
-
 
 SYSTEM = (
     "Eres un asistente técnico. Responde SOLO con base en los fragmentos de "
@@ -27,7 +24,6 @@ SYSTEM = (
     "corchetes, por ejemplo [archivo.pdf, pág. 3]. Si la respuesta no está en los "
     "fragmentos, responde: 'No está en la documentación.' Responde en español."
 )
-
 
 SYSTEM_FISIO = (
     "\n\nIMPORTANTE: quien te escribe ES el tripulante descrito en 'Datos del tripulante' (habla de 'mis', 'yo', "
@@ -42,39 +38,34 @@ SYSTEM_FISIO = (
 
 
 def estado_fisiologico(usuario=None, variables=None, series=None, medicacion=None, sesiones_cog=None):
-    """Contexto fisiológico (calculado, no inventado) para el LLM: resumen de las medidas del
-    tripulante frente a SU modelo personal y su decisión de aptitud. `series` = {variable: [(ts, valor)]}.
-    Las variables `sueno_*` son un resumen por noche (sin modelo personal). `medicacion` = [(fecha, texto)] de
-    medicación para dormir ya registrada. `sesiones_cog` = sesiones cognitivas del usuario (opcional)."""
     if not usuario or not (series or sesiones_cog):
         return ""
     from src.salud import aptitud, inferencia
     res = inferencia.resumen_global(usuario, series, variables=variables)
     apt = aptitud.evaluar_aptitud(usuario, series, sesiones_cog)
-    lineas = [f"Tripulante {usuario} (cada tripulante tiene su propio modelo entrenado con sus datos):"]
+    txt = [f"Tripulante {usuario} (cada tripulante tiene su propio modelo entrenado con sus datos):"]
     for v, m in res["medidas"].items():
         esp = m["esperado_personal"]
         esp_txt = f", esperado personal {esp['lower']}-{esp['upper']}" if esp else ""
-        lineas.append(f"- {v}: actual {m['actual']} {m['unidad']}{esp_txt}; media {m['media']}, mín {m['minimo']}, "
-                      f"máx {m['maximo']}, tendencia {m['tendencia']}; estado del modelo personal {m['estado_modelo']}; "
-                      f"clínico {m['nivel_clinico']} ({m['interpretacion_clinica']})"
-                      + (f"; deriva lenta {m['deriva']['sentido']} de {m['deriva']['cambio']}" if m['deriva']['detectada'] else "") + ".")
+        txt.append(f"- {v}: actual {m['actual']} {m['unidad']}{esp_txt}; media {m['media']}, mín {m['minimo']}, "
+                   f"máx {m['maximo']}, tendencia {m['tendencia']}; estado del modelo personal {m['estado_modelo']}; "
+                   f"clínico {m['nivel_clinico']} ({m['interpretacion_clinica']})"
+                   + (f"; deriva lenta {m['deriva']['sentido']} de {m['deriva']['cambio']}" if m['deriva']['detectada'] else "") + ".")
     if medicacion:
-        lineas.append("- Medicación para dormir registrada: " + "; ".join(f"{f}: {m}" for f, m in medicacion[-5:]) + ".")
+        txt.append("- Medicación para dormir registrada: " + "; ".join(f"{f}: {m}" for f, m in medicacion[-5:]) + ".")
     for p in res["patrones"]:
-        lineas.append(f"- Patrón: {p['mensaje']}")
+        txt.append(f"- Patrón: {p['mensaje']}")
     if apt.get("cognitivo"):
         from src.salud import cognitivo
-        lineas += cognitivo.texto_chat(apt["cognitivo"])
-    lineas.append(f"Aptitud: {'APTO' if apt['apto'] else 'NO APTO'} (nivel {apt['nivel']}). "
-                  + " ".join([e["mensaje"] for e in apt["motivos"] + apt["observaciones"]] + apt["recomendaciones"]))
-    return "\n".join(lineas)
+        txt += cognitivo.texto_chat(apt["cognitivo"])
+    txt.append(f"Aptitud: {'APTO' if apt['apto'] else 'NO APTO'} (nivel {apt['nivel']}). "
+               + " ".join([e["mensaje"] for e in apt["motivos"] + apt["observaciones"]] + apt["recomendaciones"]))
+    return "\n".join(txt)
 
 
 def buscar(consulta, k=config.TOP_K):
-    """Devuelve los k fragmentos más parecidos a la consulta."""
-    q = emb.encode([consulta], normalize_embeddings=True).astype("float32")
-    _, ids = indice.search(q, k)
+    vec = emb.encode([consulta], normalize_embeddings=True).astype("float32")
+    _, ids = indice.search(vec, k)
     return [chunks[i] for i in ids[0] if i >= 0]
 
 
@@ -88,28 +79,21 @@ def formatear(frags):
 
 
 def preparar(pregunta, k=config.TOP_K, contexto_fisio=""):
-    """Recuperación SIEMPRE obligatoria: no dependemos de que el modelo decida buscar.
-    `contexto_fisio`: texto de `estado_fisiologico()` si la pregunta es sobre un tripulante.
-    Devuelve (mensajes para el LLM, fragmentos usados)."""
-    frags = buscar(pregunta, k)
-    # Los datos del tripulante van DESPUÉS de los fragmentos, junto a la pregunta: el modelo pequeño atiende más a lo último.
-    fisio = f"\n\nDatos del tripulante que pregunta (calculados por el sistema):\n{contexto_fisio}" if contexto_fisio else ""
-    msgs = [
+    docs = buscar(pregunta, k)
+    extra = f"\n\nDatos del tripulante que pregunta (calculados por el sistema):\n{contexto_fisio}" if contexto_fisio else ""
+    m = [
         {"role": "system", "content": SYSTEM + (SYSTEM_FISIO if contexto_fisio else "")},
-        {"role": "user",
-         "content": f"Fragmentos:\n{formatear(frags)}{fisio}\n\nPregunta: {pregunta}"},
+        {"role": "user", "content": f"Fragmentos:\n{formatear(docs)}{extra}\n\nPregunta: {pregunta}"},
     ]
-    return msgs, frags
+    return m, docs
 
 
 def fuentes_de(frags):
-    """Fuentes únicas como lista de dicts, listas para serializar a JSON."""
     vistas = {(f["archivo"], pags(f)) for f in frags}
     return [{"archivo": a, "paginas": p} for a, p in sorted(vistas)]
 
 
 def generar(msgs):
-    """Genera la respuesta del LLM token por token."""
     stream = client.chat.completions.create(
         model=modelo_llm(), messages=msgs, temperature=config.TEMPERATURA,
         max_tokens=config.MAX_TOKENS_RESPUESTA, stream=True,
@@ -121,9 +105,8 @@ def generar(msgs):
 
 
 def preguntar(pregunta, k=config.TOP_K, contexto_fisio=""):
-    """Respuesta completa. Devuelve (texto, fuentes)."""
-    msgs, frags = preparar(pregunta, k, contexto_fisio)
-    return "".join(generar(msgs)), fuentes_de(frags)
+    m, docs = preparar(pregunta, k, contexto_fisio)
+    return "".join(generar(m)), fuentes_de(docs)
 
 
 if __name__ == "__main__":
@@ -135,8 +118,8 @@ if __name__ == "__main__":
         if not p:
             continue
         print()
-        msgs, frags = preparar(p)
-        for t in generar(msgs):
-            print(t, end="", flush=True)   # se muestra mientras se genera
+        m, docs = preparar(p)
+        for t in generar(m):
+            print(t, end="", flush=True)
         print("\n\nFuentes consultadas:",
-              ", ".join(f"{f['archivo']} p.{f['paginas']}" for f in fuentes_de(frags)))
+              ", ".join(f"{f['archivo']} p.{f['paginas']}" for f in fuentes_de(docs)))
