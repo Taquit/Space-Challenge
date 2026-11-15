@@ -201,3 +201,41 @@ curl -N localhost:8000/tripulantes/astro_1/salud/stream
 curl -N -X POST localhost:8000/preguntar/stream -H 'Content-Type: application/json' \
      -d '{"pregunta": "¿Cuál es el límite de dosis de radiación en toda la carrera?"}'
 ```
+
+## 9. Voz: leer en voz alta lo que devuelve el backend
+
+El front lee en voz alta las respuestas del chat y las notificaciones. Se hace **en el navegador** con la Web Speech API (`speechSynthesis`): sin dependencias, sin endpoint nuevo y sin internet. Copien [`front/voz.ts`](front/voz.ts) a su proyecto.
+
+| Qué se lee | De dónde sale | Cómo |
+|---|---|---|
+| Respuesta del chat | eventos `token` de `POST /preguntar/stream` | `lectorStream()`: habla cada oración en cuanto se completa (no espera al final, el modelo es lento) |
+| Respuesta completa | `respuesta` de `POST /preguntar` | `voz.hablar(r.respuesta)` |
+| Alertas | evento `notificacion` del stream de salud | `voz.hablar(textoNotificacion(n))` |
+| Aptitud | `GET /tripulantes/{id}/aptitud` | `voz.hablar(textoAptitud(a))` |
+
+```ts
+import { voz, lectorStream, textoNotificacion } from "./voz";
+
+// Chat
+const lector = lectorStream();
+let texto = "";
+await sse(`${base}/preguntar/stream`, (ev, d) => {
+  if (ev === "fuentes") setFuentes(d);
+  else if (ev === "token") { texto += d; setRespuesta(texto); lector.agregar(d); }
+  else if (ev === "fin") lector.fin();
+  else if (ev === "error") { lector.cancelar(); setError(d); }
+}, { body: { pregunta } });
+
+// Notificaciones (dentro del handler del stream de salud)
+if (ev === "notificacion") voz.hablar(textoNotificacion(d), { interrumpir: d.severidad === "CRITICO" });
+
+// Botón de silencio (la preferencia se guarda en localStorage)
+<button onClick={() => voz.activar(!voz.activa)}>{voz.activa ? "🔊" : "🔇"}</button>
+```
+
+A tener en cuenta:
+- **El texto se limpia antes de leerse** (`limpiar`): se quitan las citas `[nasa 2.pdf, pág. 39]` y el markdown, y `spo2`, `presion_sistolica`, `bpm`, etc. se dicen con su nombre completo. En pantalla sigan mostrando el texto original.
+- **El navegador bloquea el audio hasta que el usuario interactúa con la página.** El chat no tiene problema (hay un clic al enviar); las notificaciones no sonarán si llegan antes del primer clic o tecla.
+- **Voz en español y sin internet**: el módulo elige una voz `es-*` local. Windows y macOS ya traen una. En Linux, Chrome/Firefox usan `speech-dispatcher` + `espeak-ng` (`sudo dnf install speech-dispatcher espeak-ng`). Las voces "Google español" de Chrome **requieren internet**; por eso se prefieren las locales. `voz.hayVozEnEspanol()` dice si hay una instalada y `voz.disponible` si el navegador soporta voz.
+- Al cambiar de tripulante o cancelar una pregunta, llamen `voz.callar()` (o `lector.cancelar()`).
+- Las preguntas del usuario no se leen, solo lo que responde el backend.

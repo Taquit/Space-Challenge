@@ -1,13 +1,20 @@
 """Configuración central del RAG."""
+import os
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
+
+
+def _ruta(var, defecto):
+    """Ruta configurable por variable de entorno (relativa a la raíz del proyecto o absoluta)."""
+    v = os.environ.get(var)
+    return (RAIZ / v) if v else defecto
 PDFS_DIR = RAIZ / "data" / "pdfs"
 INDICE = RAIZ / "data" / "indices" / "indice.faiss"
 CHUNKS = RAIZ / "data" / "indices" / "chunks.json"
 MODELO_EMB = str(RAIZ / "models" / "bge-m3")
 
-DATOS_FISIOLOGICOS = RAIZ / "data" / "fisiologico.json"
+DATOS_FISIOLOGICOS = _ruta("DATOS_FISIOLOGICOS", RAIZ / "data" / "fisiologico.json")   # lo que lee la API
 REPORTE = RAIZ / "data" / "indices" / "report.md"   # reporte de calidad del chunking
 
 # Chunking (src/rag/prepare_chunks.py). Los tokens se estiman como palabras x 1.3
@@ -25,7 +32,7 @@ RAZONAMIENTO = "none"   # LM Studio: "none" apaga el razonamiento de Qwen3.5 (mu
 MAX_TOKENS_RESPUESTA = 300
 
 # --- Parte 2: series de tiempo (modelo de NasaSpaceApps-Model) ---
-FISIOLOGICO = RAIZ / "data" / "fisiologico.json"
+FISIOLOGICO = _ruta("DATOS_FISIOLOGICOS", RAIZ / "data" / "fisiologico.json")   # lo que lee analizar (misma variable)
 MODELO_SERIES = RAIZ / "models" / "series" / "best_model.joblib"
 DESVIACIONES = RAIZ / "data" / "resultados" / "deviations.json"   # salida de src.series.analizar
 # Nombre de variable en fisiologico.json -> columna que espera el modelo
