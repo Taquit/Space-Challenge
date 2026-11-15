@@ -30,7 +30,10 @@ SYSTEM = (
 
 
 SYSTEM_FISIO = (
-    " Si se incluyen 'Datos del tripulante', úsalos para resumir las medidas y la aptitud: cita solo las "
+    "\n\nIMPORTANTE: quien te escribe ES el tripulante descrito en 'Datos del tripulante' (habla de 'mis', 'yo', "
+    "'mi salud'...). Para preguntas personales (quién soy, mis signos vitales, cómo estoy, mi sueño, mi aptitud) "
+    "responde con ESOS datos aunque no estén en los fragmentos; nunca digas 'No está en la documentación' para "
+    "ellas. Dirígete a él de tú y menciona su identificador. Cita solo las "
     "cifras dadas, no inventes valores, indica si es APTO o NO APTO y aclara que es orientativo. "
     "Si hay resultados cognitivos, cita solo sus cifras, di que son orientativos y que una sesión atípica "
     "puede deberse a fatiga, distracción o poco esfuerzo; nunca los uses para declarar no apto. "
@@ -89,11 +92,12 @@ def preparar(pregunta, k=config.TOP_K, contexto_fisio=""):
     `contexto_fisio`: texto de `estado_fisiologico()` si la pregunta es sobre un tripulante.
     Devuelve (mensajes para el LLM, fragmentos usados)."""
     frags = buscar(pregunta, k)
-    fisio = f"Datos del tripulante (calculados por el sistema):\n{contexto_fisio}\n\n" if contexto_fisio else ""
+    # Los datos del tripulante van DESPUÉS de los fragmentos, junto a la pregunta: el modelo pequeño atiende más a lo último.
+    fisio = f"\n\nDatos del tripulante que pregunta (calculados por el sistema):\n{contexto_fisio}" if contexto_fisio else ""
     msgs = [
         {"role": "system", "content": SYSTEM + (SYSTEM_FISIO if contexto_fisio else "")},
         {"role": "user",
-         "content": f"{fisio}Fragmentos:\n{formatear(frags)}\n\nPregunta: {pregunta}"},
+         "content": f"Fragmentos:\n{formatear(frags)}{fisio}\n\nPregunta: {pregunta}"},
     ]
     return msgs, frags
 

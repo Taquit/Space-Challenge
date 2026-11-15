@@ -692,7 +692,7 @@ function EcgCanvas(p) {
 
 class Component extends DCLogic {
   state = { crew: 'katya', dialPos: 0, dialDir: 1, legend: false, sleepMetric: 'dur', cogSel: 'pvt', view: 'home', idx: 108, ended: false, histMode: 'today', histVar: 'pulso',
-    speaking: false, muted: false, caption: '', messages: [], draft: '', showHelp: false, drag: 0, dragging: false, retrying: false,
+    speaking: false, muted: !!(window.OrbitalVoz && !window.OrbitalVoz.voz.activa), vozOn: false, caption: '', messages: [], draft: '', showHelp: false, drag: 0, dragging: false, retrying: false,
     cog: { step: 'menu' }, pvt: null, rtNow: 0, confirmExit: false, sessions: {}, chatTick: 0,
     live: false, backendUp: false, llmUp: true, liveNotifs: [], detTick: 0 };
   detalle = {};             // inferencias del backend por tripulante de diseño: {resumen, aptitud, cogHist, cogResumen}
@@ -722,8 +722,10 @@ class Component extends DCLogic {
     this.acted = () => { this.userActed = true; };
     window.addEventListener('pointerdown', this.acted, { once: true }); window.addEventListener('keydown', this.acted, { once: true });
     this.applyTheme();
+    // La esfera y el subtítulo siguen a la voz real (avisos críticos, rueda, chat), no a un temporizador.
+    const V = this.voz(); if (V && V.voz.alCambiar) this.offVoz = V.voz.alCambiar((on, t) => this.setState(on ? { vozOn: true, caption: t } : { vozOn: false }));
   }
-  componentWillUnmount() { clearInterval(this.timer); clearInterval(this.pollT); clearTimeout(this.detT); window.removeEventListener('keydown', this.keys); this.clearPvt(); clearInterval(this.streamT); this.streamAbort && this.streamAbort.abort(); this.chatAbort && this.chatAbort.abort(); this.voz() && this.voz().voz.callar(); window.speechSynthesis && speechSynthesis.cancel(); }
+  componentWillUnmount() { this.offVoz && this.offVoz(); clearTimeout(this.viewT); clearInterval(this.timer); clearInterval(this.pollT); clearTimeout(this.detT); window.removeEventListener('keydown', this.keys); this.clearPvt(); clearInterval(this.streamT); this.streamAbort && this.streamAbort.abort(); this.chatAbort && this.chatAbort.abort(); this.voz() && this.voz().voz.callar(); window.speechSynthesis && speechSynthesis.cancel(); }
   voz() { return window.OrbitalVoz; }
 
   async initLive() {
@@ -794,8 +796,9 @@ class Component extends DCLogic {
         this.setState(s => ({ chatTick: s.chatTick + 1 })); this.scheduleDetalle(crewId); },
       onNotificacion: n => {
         this.setState(s => s.liveNotifs.some(x => x.id === n.id) ? null : { liveNotifs: [...s.liveNotifs, n].slice(-40) });
-        // Voz (FRONT.md §10): solo tras una interacción del usuario; las críticas interrumpen.
-        const V2 = this.voz(); if (V2 && this.userActed) V2.voz.hablar(V2.textoNotificacion(n, cr.name), { interrumpir: n.severidad === 'CRITICO' });
+        // Voz: Orbi solo habla por iniciativa propia ante una alerta CRÍTICA (interrumpe lo que esté diciendo).
+        // El resto de avisos se ven en pantalla; se escuchan si la persona gira la rueda a esa medición.
+        const V2 = this.voz(); if (V2 && this.userActed && n.severidad === 'CRITICO') V2.voz.hablar(V2.textoNotificacion(n, cr.name), { interrumpir: true });
         this.scheduleDetalle(crewId);
       },
       onFin: () => { this.setState({ ended: true }); this.refreshDetalle(crewId); }
@@ -816,8 +819,23 @@ class Component extends DCLogic {
   }
   applyTheme() { document.documentElement.dataset.theme = urlProps(this.props).dark ? 'dark' : 'light'; }
   crewObj() { return CREW.find(c => c.id === this.state.crew); }
-  shiftDial(d) { this.setState(s => ({ dialPos: s.dialPos + d, dialDir: d })); }
-  goDial(i) { this.setState(s => { const cur = ((s.dialPos % 4) + 4) % 4; let df = (((i - cur) % 4) + 4) % 4; if (df > 2) df -= 4; if (df === 2) df = s.dialDir >= 0 ? 2 : -2; return { dialPos: s.dialPos + df, dialDir: df || s.dialDir }; }); }
+  shiftDial(d) { this.setState(s => ({ dialPos: s.dialPos + d, dialDir: d })); this.speakViewSoon(); }
+  goDial(i) { this.setState(s => { const cur = ((s.dialPos % 4) + 4) % 4; let df = (((i - cur) % 4) + 4) % 4; if (df > 2) df -= 4; if (df === 2) df = s.dialDir >= 0 ? 2 : -2; return { dialPos: s.dialPos + df, dialDir: df || s.dialDir }; }); this.speakViewSoon(); }
+  // La persona giró la rueda: Orbi lee el estado de esa medición. Con espera corta para no hablar en cada paso de un giro rápido.
+  speakViewSoon() { clearTimeout(this.viewT); this.viewT = setTimeout(() => { const V = this.voz(); if (V && this.state.view !== 'chat') V.voz.hablar(this.viewText(), { interrumpir: true }); }, 500); }
+  viewText() {
+    const S = this.state, cr = this.crewObj(), first = cr.name.split(' ')[0], key = cr.order[((S.dialPos % 4) + 4) % 4], label = VIEWS[key].label;
+    if (cr.noData) return `${label}: aún no tengo lecturas de ${first}.`;
+    const A = this.analyze(cr, S.idx), why = A.reasons.filter(r => r.view === key).map(r => r.text.toLowerCase());
+    const tail = why.length ? ` Ojo: ${why.join(' y ')}.` : ' Todo dentro de tu rango personal.';
+    if (key === 'corazon') { const r = A.res; if (!r || !r.pulso) return `${label}: todavía no hay lecturas.`;
+      return `${label}: pulso ${fmt(r.pulso.valor)} latidos por minuto, oxígeno ${fmt(r.spo2.valor)} por ciento y presión ${fmt(r.presion_sistolica.valor)} sobre ${fmt(r.presion_diastolica.valor)}.` + tail; }
+    if (key === 'sueno') { const SS = this.sleepStatsCr(cr); if (!SS) return `${label}: no recibo datos de sueño de ${first}.`;
+      const [h, m] = hm(cr.sleep.dur[cr.sleep.dur.length - 1]);
+      return `${label}: anoche dormiste ${h} horas ${m} minutos, con eficiencia de ${Math.round(SS.m.eff.last)} por ciento.` + tail; }
+    if (key === 'cognicion') return A.cogSev < 0 ? `${label}: aún faltan pruebas para tener tu línea base.` : `${label}:` + (why.length ? tail : ' tus pruebas están dentro de tu línea base.');
+    return cr.temp != null ? `${label}: ${fmt(cr.temp)} grados.` : `${label}: sin lecturas.`;
+  }
   closeAll = () => { if (this.state.cog.step === 'test') return this.setState({ confirmExit: true }); this.setState({ view: 'home', drag: 0 }); };
   sources(q) { return q === 'sueno' ? [{ label: 'contramedidas_sueno.pdf · p. 12' }, { label: 'manual_salud_tripulacion.pdf · p. 58' }] : [{ label: 'manual_salud_tripulacion.pdf · p. 34' }, { label: 'contramedidas_sueno.pdf · p. 7' }]; }
 
@@ -898,14 +916,11 @@ class Component extends DCLogic {
         finish(m => ({ ...m, status: 'done', text: acc || msg })); });
   }
   stopStream() { clearInterval(this.streamT); this.chatAbort && this.chatAbort.abort(); this.lector && this.lector.cancelar(); this.streaming = false; this.setState(s => ({ speaking: false, messages: s.messages.map(m => m.status === 'searching' || m.status === 'streaming' ? { ...m, status: 'stopped', text: m.text ? m.text + ' …' : 'Detuve la respuesta.' } : m) })); }
-  speak(text) {
-    if (this.state.speaking) { window.speechSynthesis && speechSynthesis.cancel(); clearTimeout(this.spT); return this.setState({ speaking: false }); }
-    this.setState({ speaking: true, caption: text });
-    const done = () => this.setState({ speaking: false });
-    if (window.speechSynthesis && !this.state.muted) {
-      const u = new SpeechSynthesisUtterance(text); u.lang = 'es-MX'; u.rate = .98; u.onend = done; u.onerror = done; speechSynthesis.cancel(); speechSynthesis.speak(u);
-      this.spT = setTimeout(done, 16000);
-    } else this.spT = setTimeout(done, 6500);
+  // Botón de silencio: apaga TODA la voz de Orbi (avisos, rueda, chat) y lo recuerda; al reactivarla lee el resumen.
+  toggleMute(summary) {
+    const V = this.voz(); if (!V) return;
+    if (this.state.muted) { V.voz.activar(true); this.setState({ muted: false }); V.voz.hablar(summary, { interrumpir: true }); }
+    else { clearTimeout(this.viewT); this.lector && this.lector.cancelar(); V.voz.activar(false); this.setState({ muted: true, vozOn: false }); }
   }
   clearPvt() { clearTimeout(this.pvtT); clearInterval(this.pvtTick); clearTimeout(this.pvtMsgT); }
   pvtSchedule() {
@@ -1099,7 +1114,7 @@ class Component extends DCLogic {
       sysText: S.retrying ? 'Reintentando…' : connecting ? 'Conectando…' : offline ? 'Sin conexión' : llmOff ? (S.live ? 'Backend en vivo · Orbi no disponible' : 'Datos OK · Orbi no disponible') : S.ended ? (S.live ? `Backend · fin de datos · ${clock}` : `Fin del día grabado · ${clock}`) : (S.live ? `Backend en vivo · ${clock}` : `En vivo · ${clock}`),
       showRetry: offline, retryLabel: S.retrying ? '…' : 'Reintentar', retry: () => { this.setState({ retrying: true }); if (S.live) this.pollSalud().finally(() => this.setState({ retrying: false })); else setTimeout(() => this.setState({ retrying: false }), 1600); },
       openHelp: () => this.setState({ showHelp: true }), showHelp: S.showHelp, closeHelp: () => { localStorage.setItem('orbital.onboarded', '1'); this.setState({ showHelp: false }); },
-      orbiEl: React.createElement(OrbiSphere, { color: orbiColor, speaking: S.speaking, reduced, glow: offline ? 0 : A.sev >= 2 ? 1 : A.sev === 1 ? .25 : 0 }),
+      orbiEl: React.createElement(OrbiSphere, { color: orbiColor, speaking: S.speaking || S.vozOn, reduced, glow: offline ? 0 : A.sev >= 2 ? 1 : A.sev === 1 ? .25 : 0 }),
       orbiTransform: inChat ? 'translate(-50%, calc(-50% - 50vh + 170px)) scale(.26)' : inDash ? 'translate(-50%,-50%) scale(.92)' : 'translate(-50%,-50%)',
       orbiFilter: inDash ? 'blur(14px)' : 'none', orbiOpacity: inDash ? .7 : 1,
       onOrbiClick: () => { if (S.view === 'home') openDash(); },
@@ -1107,7 +1122,7 @@ class Component extends DCLogic {
       greeting: `${hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'}, ${first}.`,
       homeLine, homeDot: offline || connecting ? 'var(--state-idle)' : A.sev <= 0 ? (A.sev === -1 ? 'var(--state-idle)' : 'var(--state-ok)') : SEV_VAR[A.sev], homeDotRing: A.sev > 0 ? tint(A.sev) : 'transparent',
       onStatusClick: () => { const rv = A.reasons[0]; if (rv) this.goDial(order.indexOf(rv.view)); openDash(); },
-      toggleSpeak: () => this.speak(summary), speakLabel: S.speaking ? 'Silenciar a Orbi' : 'Escuchar resumen', speakIcon: S.speaking ? IC.mute : IC.speaker, speaking: S.speaking && S.view === 'home', caption: S.caption,
+      toggleSpeak: () => this.toggleMute(summary), speakLabel: S.muted ? 'Activar la voz de Orbi' : 'Silenciar a Orbi', speakIcon: S.muted ? IC.mute : IC.speaker, speaking: S.vozOn && S.view === 'home', caption: S.caption,
       crewList, dialItems, dialLabel: VIEWS[activeKey].label.toUpperCase(),
       dialOpacity: inChat ? 0 : 1, dialPE: inChat || inDash ? 'none' : 'auto', dialY: inDash ? '40px' : '0px', dialHintO: S.dialPos === 0 && !localStorage.getItem('orbital.dialed') ? 1 : 0,
       dialDown: e => { this.dx = e.clientX; this.moved = false; },
