@@ -138,11 +138,14 @@
       // Frase por frase: la primera empieza a sonar mientras Piper sintetiza las siguientes.
       // alTerminar solo va en la última (se llama una vez por aviso, no por frase).
       var frases = limpio.split(/(?<=[.!?…])\s+/).filter(Boolean);   // corta en ". " (no en decimales como 36.5)
+      // prioridad (avisos): se colocan delante de lo que no es prioritario (narración, chat), detrás de otros avisos.
+      var pos = cola.length;
+      if (opts.prioridad) { pos = 0; while (pos < cola.length && cola[pos].opts.prioridad) pos++; }
       frases.forEach(function (f, i) {
         var o = {}; for (var k in opts) o[k] = opts[k];
         if (i < frases.length - 1) delete o.alTerminar;
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        cola.push({ texto: f, opts: o, ctrl: ctrl, audio: piperUsable() ? pedirAudio(f, ctrl && ctrl.signal) : null });
+        cola.splice(pos + i, 0, { texto: f, opts: o, ctrl: ctrl, audio: piperUsable() ? pedirAudio(f, ctrl && ctrl.signal) : null });
       });
       if (!actual) siguiente();
     },

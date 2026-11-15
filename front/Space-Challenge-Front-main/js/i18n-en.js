@@ -485,10 +485,6 @@ window.ORBITAL_I18N_EN = {
    "'How is my health? I saw a fatigue alert during my last shift.'"
   ],
   [
-   "`Revisa los datos de ${name}.`",
-   "`Check ${name}'s data.`"
-  ],
-  [
    "{ sueno_duracion: 'Duración del sueño', sueno_eficiencia: 'Eficiencia del sueño', sueno_latencia: 'Latencia de sueño' }",
    "{ sueno_duracion: 'Sleep duration', sueno_eficiencia: 'Sleep efficiency', sueno_latencia: 'Sleep latency' }"
   ],

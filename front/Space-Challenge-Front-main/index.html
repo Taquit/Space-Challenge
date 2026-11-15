@@ -769,36 +769,55 @@ class Component extends DCLogic {
      - Resto: solo "Revisa los datos de X" (respeta el silencio; como mucho una vez cada 45 s por persona).
      Lo que ya existía al abrir la app no se lee (sería una avalancha): solo lo que llega después. */
   watchCrew() {
-    clearInterval(this.watchT); this.notifDesde = {}; this.voiced = new Set(); this.lastCheck = {}; this.critPending = 0;
+    clearInterval(this.watchT); this.notifDesde = {}; this.voiced = new Set(); this.critPending = 0; this.pendientes = {};
+    // Toda la tripulación en paralelo y cada segundo (cada consulta tarda ~5 ms en el backend).
     const tick = async () => {
       if (this.watching) return; this.watching = true;
       try {
-        for (const c of CREW) {
-          const bid = c.live && OrbitalLive.BACKEND_ID[c.id]; if (!bid) continue;
+        await Promise.all(CREW.map(async c => {
+          const bid = c.live && OrbitalLive.BACKEND_ID[c.id]; if (!bid) return;
           const baseline = this.notifDesde[bid] === undefined;
-          let ns; try { ns = await OrbitalAPI.notificaciones(bid, this.notifDesde[bid] || 0); } catch (e) { continue; }
-          if (!ns.length) { if (baseline) this.notifDesde[bid] = 0; continue; }
+          let ns; try { ns = await OrbitalAPI.notificaciones(bid, this.notifDesde[bid] || 0); } catch (e) { return; }
+          if (!ns.length) { if (baseline) this.notifDesde[bid] = 0; return; }
           this.notifDesde[bid] = Math.max(this.notifDesde[bid] || 0, ...ns.map(n => n.id));
           this.setState(s => { const ids = new Set(s.liveNotifs.map(n => n.id)), nu = ns.filter(n => !ids.has(n.id)); return nu.length ? { liveNotifs: [...s.liveNotifs, ...nu].slice(-80) } : null; });
           const nuevas = ns.filter(n => !this.voiced.has(n.id)); nuevas.forEach(n => this.voiced.add(n.id));
           if (!baseline) this.voiceNotifs(c, bid, nuevas);
-        }
+        }));
       } finally { this.watching = false; }
     };
-    tick(); this.watchT = setInterval(tick, 3000);
+    tick(); this.watchT = setInterval(tick, 1000);
   }
   async voiceNotifs(c, bid, ns) {
     const V = this.voz(); if (!V || !ns.length) return;
     const name = c.name.split(' ')[0], crit = ns.filter(n => n.severidad === 'CRITICO');
+    // No críticos: en el inicio solo se ven en texto. Quedan pendientes y Orbi los lee al abrir el panel de su sección
+    // (o al llegar, si ese panel ya está abierto). Se conserva el mensaje completo de cada aviso.
+    ns.filter(n => n.severidad !== 'CRITICO').forEach(n => (this.pendientes[c.id] = this.pendientes[c.id] || []).push(n));
+    this.decirPendientes();
     if (crit.length) {
-      let res = null; try { res = await OrbitalAPI.resumen(bid); } catch (e) { }
       // Interrumpe lo que esté diciendo, salvo otra alerta crítica (esa se respeta y esta va en cola).
       const interrumpir = !this.critPending; this.critPending++;
-      V.voz.hablar(this.criticalText(name, crit, res), { forzar: true, interrumpir, alTerminar: () => { this.critPending = Math.max(0, this.critPending - 1); } });
-      return;
+      const fin = () => { this.critPending = Math.max(0, this.critPending - 1); };
+      // [primera oración, resto]: el encabezado ("Alerta crítica para X.") suena YA, sin esperar a /resumen;
+      // el detalle con la inferencia se encola en cuanto llega. Se corta el texto ya traducido (sirve en es y en).
+      const partir = t => { const i = t.indexOf('. '); return i < 0 ? [t, ''] : [t.slice(0, i + 1), t.slice(i + 2)]; };
+      V.voz.hablar(partir(this.criticalText(name, crit, null))[0], { forzar: true, interrumpir, prioridad: true });
+      let res = null; try { res = await OrbitalAPI.resumen(bid); } catch (e) { }
+      const detalle = partir(this.criticalText(name, crit, res))[1];
+      if (detalle) V.voz.hablar(detalle, { forzar: true, prioridad: true, alTerminar: fin }); else fin();
     }
-    const now = Date.now(); if (now - (this.lastCheck[bid] || 0) < 45000) return; this.lastCheck[bid] = now;
-    V.voz.hablar(`Revisa los datos de ${name}.`);
+  }
+  // Sección de la rueda a la que pertenece la medida de un aviso.
+  vistaDe(v) { return /^sueno/.test(v) ? 'sueno' : v === 'cognitivo' ? 'cognicion' : /^temp/.test(v) ? 'temp' : 'corazon'; }
+  // Si el panel (dash) está abierto, lee los avisos no críticos pendientes de esa persona y esa sección.
+  decirPendientes() {
+    const S = this.state, V = this.voz(), c = this.crewObj(); if (!V || !c || S.view !== 'dash') return;
+    const seccion = c.order[((S.dialPos % 4) + 4) % 4], lista = this.pendientes[c.id] || [];
+    const ahora = lista.filter(n => this.vistaDe(n.variable) === seccion); if (!ahora.length) return;
+    this.pendientes[c.id] = lista.filter(n => !ahora.includes(n));
+    const name = c.name.split(' ')[0];
+    ahora.forEach(n => V.voz.hablar(V.textoNotificacion(n, name), { prioridad: true }));   // se adelanta a la narración en cola
   }
   // "Alerta crítica para Katya. Ritmo cardíaco en 142 latidos por minuto, taquicardia. Inferencia: … Revisa sus datos ahora."
   criticalText(name, crit, res) {
@@ -876,7 +895,11 @@ class Component extends DCLogic {
         this.setState(s => ({ chatTick: s.chatTick + 1 })); this.scheduleDetalle(crewId); },
       onNotificacion: n => {
         this.setState(s => s.liveNotifs.some(x => x.id === n.id) ? null : { liveNotifs: [...s.liveNotifs, n].slice(-80) });
-        // La voz de los avisos no se dispara aquí (este stream es solo del perfil abierto): la lleva watchCrew(), para toda la tripulación.
+        // Perfil abierto: el aviso llega aquí antes que al sondeo de watchCrew(), así que se dice ya.
+        // Mismo registro `voiced` que watchCrew (no se repite) y solo tras su línea base (no se leen avisos viejos).
+        if (this.notifDesde && this.notifDesde[bid] !== undefined && n.id > this.notifDesde[bid] && !this.voiced.has(n.id)) {
+          this.voiced.add(n.id); this.voiceNotifs(cr, bid, [n]);
+        }
         this.scheduleDetalle(crewId);
       },
       onFin: () => { this.setState({ ended: true }); this.refreshDetalle(crewId); }
@@ -888,14 +911,16 @@ class Component extends DCLogic {
     try { await OrbitalAPI.reiniciarSimulacion(); } catch (e) { return this.pollSalud(); }
     this.setState({ liveNotifs: [], ended: false });
     // El backend borra los avisos y reinicia sus ids: se vigila desde 0 (sin línea base, todo lo que llegue es nuevo).
-    this.voiced = new Set(); CREW.forEach(c => { const b = OrbitalLive.BACKEND_ID[c.id]; if (b) this.notifDesde[b] = 0; });
+    this.voiced = new Set(); this.pendientes = {}; CREW.forEach(c => { const b = OrbitalLive.BACKEND_ID[c.id]; if (b) this.notifDesde[b] = 0; });
     this.openStream(this.state.crew);                        // el snapshot nuevo reemplaza series y sueño
   }
   componentDidUpdate() {
     this.applyTheme();
     const el = this.chatScrollRef.current, S = this.state, pv = this.prevUi || {};
     if (el && (pv.messages !== S.messages || pv.view !== S.view)) el.scrollTop = el.scrollHeight;
-    this.prevUi = { messages: S.messages, view: S.view };
+    // Al abrir el panel, o al cambiar de sección o de tripulante con el panel abierto: lee los avisos pendientes de esa sección.
+    if (S.view === 'dash' && (pv.view !== 'dash' || pv.dialPos !== S.dialPos || pv.crew !== S.crew)) this.decirPendientes();
+    this.prevUi = { messages: S.messages, view: S.view, dialPos: S.dialPos, crew: S.crew };
   }
   applyTheme() { document.documentElement.dataset.theme = urlProps(this.props).dark ? 'dark' : 'light'; }
   crewObj() { return CREW.find(c => c.id === this.state.crew); }
