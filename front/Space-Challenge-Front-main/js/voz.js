@@ -23,7 +23,12 @@
     return fetch(api() + '/voz', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: texto, idioma: IDIOMA }) })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
       .then(function (b) { return URL.createObjectURL(b); })
-      .catch(function () { piperFueraHasta = Date.now() + 60000; return null; });
+      .catch(function (e) {
+        piperFueraHasta = Date.now() + 60000;
+        console.warn('[ORBITAL voz] Piper no disponible en ' + api() + '/voz (' + (e && e.message) + '); uso la voz del navegador. ' +
+          '¿Backend arrancado con el código nuevo (python -m src.api.main) y voces en models/voz/?');
+        return null;
+      });
   }
 
   /* ---------- Voz del navegador (respaldo) ---------- */

@@ -34,6 +34,12 @@ async def lifespan(app):
     # Se importa aquí: carga BGE-M3 y el índice una sola vez al arrancar.
     from src.rag import agente
     estado["agente"] = agente
+    # Precarga las voces de Piper: el primer aviso hablado no espera a que se cargue el modelo.
+    for idioma in config.VOCES:
+        try:
+            voz.sintetizar(".", idioma)
+        except Exception:
+            pass   # sin voz instalada: el front usa la del navegador
     yield
     estado.clear()
 
