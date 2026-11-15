@@ -62,7 +62,7 @@
     alCambiar: function (fn) { oyentes.push(fn); return function () { oyentes = oyentes.filter(function (f) { return f !== fn; }); }; },
     hablar: function (texto, opts) {
       opts = opts || {};
-      if (!disponible || !activa) return;
+      if (!disponible || (!activa && !opts.forzar)) return;   // forzar: alertas críticas, suenan aunque esté silenciado
       var limpio = limpiar(texto); if (!limpio) return;
       if (opts.interrumpir) voz.callar();
       decir(limpio, opts, vozElegida);
@@ -83,7 +83,7 @@
       var cancelado = !vivos.has(u) || (e && (e.error === 'canceled' || e.error === 'interrupted'));
       vivos.delete(u);
       // Voz de red sin conexión: se repite con la voz local para no perder el aviso.
-      if (!cancelado && activa && v && !v.localService && vozLocal) return decir(limpio, opts, vozLocal);
+      if (!cancelado && (activa || opts.forzar) && v && !v.localService && vozLocal) return decir(limpio, opts, vozLocal);
       if (!vivos.size) avisar(false, '');
       if (opts.alTerminar) opts.alTerminar();
     };

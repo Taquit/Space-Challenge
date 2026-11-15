@@ -670,19 +670,33 @@ function OrbiSphere(p) {
 }
 function EcgCanvas(p) {
   const ref = React.useRef(null), pr = React.useRef(p); pr.current = p;
+  /* Trazo que se desplaza (como un monitor real): cada latido se genera con el ritmo del momento, así que al
+     cambiar el pulso los latidos nuevos entran más juntos o más separados sin que salte lo ya dibujado.
+     La forma depende del ritmo: el intervalo QT se acorta con la frecuencia (Bazett), con una pequeña
+     variabilidad latido a latido. La frecuencia se acerca suave a la última lectura. */
   React.useEffect(() => {
-    const c = ref.current, ctx = c.getContext('2d'); let raf;
-    const G = (ph, m, w, a) => a * Math.exp(-((ph - m) ** 2) / (2 * w * w));
-    const f = ph => G(ph, .12, .025, .12) + G(ph, .3, .008, -.12) + G(ph, .32, .01, 1) + G(ph, .345, .01, -.28) + G(ph, .6, .045, .28);
+    const c = ref.current, ctx = c.getContext('2d'); let raf, last = null, ys = null, bpmNow = pr.current.bpm || 70, tb = 0, rr = 60 / bpmNow, flash = 0, acc = 0;
+    const G = (t, m, w, a) => a * Math.exp(-((t - m) ** 2) / (2 * w * w));
+    const beat = (t, RR) => { const qt = .4 * Math.sqrt(RR), tT = Math.min(.22 + .72 * qt, RR - .06);
+      return G(t, .1, .025, .12) + G(t, .2, .008, -.12) + G(t, .22, .01, 1) + G(t, .245, .01, -.28) + G(t, tT, .05 * Math.sqrt(RR), .28); };
     const draw = now => {
-      const P = pr.current, dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
-      if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+      const P = pr.current, dpr = window.devicePixelRatio || 1, w = Math.max(1, Math.round(c.clientWidth)), h = c.clientHeight;
+      if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; }
+      const pps = w / 3.2, spp = 1 / pps;
+      const step = () => { tb += spp; if (tb >= rr) { tb -= rr; rr = (60 / bpmNow) * (1 + (Math.random() - .5) * .06); flash = 1; } ys.shift(); ys.push(beat(tb, rr)); };
+      if (!ys || ys.length !== w + 1) { ys = new Array(w + 1).fill(0); for (let i = 0; i <= w; i++) step(); flash = 0; }   // arranca ya lleno
+      const dt = last == null ? 0 : Math.min(.1, (now - last) / 1000); last = now;
+      const target = Math.max(30, Math.min(220, P.bpm || 70)); bpmNow += (target - bpmNow) * Math.min(1, dt * 1.2);
+      acc += dt * pps; for (; acc >= 1; acc--) step();       // acumulador: avance exacto aunque cambien los fps
+      flash = Math.max(0, flash - dt * 3);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
-      const t = now / 1000, pps = w / 3.2, bps = (P.bpm || 70) / 60;
       ctx.beginPath();
-      for (let x = 0; x <= w; x += 1) { const tt = t - (w - x) / pps, ph = (tt * bps) % 1; const y = h * .72 - f(ph) * h * .62; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      for (let x = 0; x <= w; x++) { const y = h * .72 - ys[x] * h * .62; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
       const gr = ctx.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, P.color + '00'); gr.addColorStop(.25, P.color); gr.addColorStop(1, P.color);
-      ctx.strokeStyle = gr; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+      ctx.strokeStyle = gr; ctx.lineWidth = 1.6 + flash * .6; ctx.lineJoin = 'round'; ctx.stroke();
+      // Punto brillante en el extremo: late con cada complejo QRS.
+      const ye = h * .72 - ys[w] * h * .62; ctx.beginPath(); ctx.arc(w - 2, ye, 2.2 + flash * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = P.color; ctx.globalAlpha = .55 + flash * .45; ctx.fill(); ctx.globalAlpha = 1;
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw); return () => cancelAnimationFrame(raf);
@@ -725,7 +739,7 @@ class Component extends DCLogic {
     // La esfera y el subtítulo siguen a la voz real (avisos críticos, rueda, chat), no a un temporizador.
     const V = this.voz(); if (V && V.voz.alCambiar) this.offVoz = V.voz.alCambiar((on, t) => this.setState(on ? { vozOn: true, caption: t } : { vozOn: false }));
   }
-  componentWillUnmount() { this.offVoz && this.offVoz(); clearTimeout(this.viewT); clearInterval(this.timer); clearInterval(this.pollT); clearTimeout(this.detT); window.removeEventListener('keydown', this.keys); this.clearPvt(); clearInterval(this.streamT); this.streamAbort && this.streamAbort.abort(); this.chatAbort && this.chatAbort.abort(); this.voz() && this.voz().voz.callar(); window.speechSynthesis && speechSynthesis.cancel(); }
+  componentWillUnmount() { this.offVoz && this.offVoz(); clearTimeout(this.viewT); clearInterval(this.watchT); clearInterval(this.timer); clearInterval(this.pollT); clearTimeout(this.detT); window.removeEventListener('keydown', this.keys); this.clearPvt(); clearInterval(this.streamT); this.streamAbort && this.streamAbort.abort(); this.chatAbort && this.chatAbort.abort(); this.voz() && this.voz().voz.callar(); window.speechSynthesis && speechSynthesis.cancel(); }
   voz() { return window.OrbitalVoz; }
 
   async initLive() {
@@ -743,8 +757,68 @@ class Component extends DCLogic {
       sessions: Object.fromEntries(CREW.map(c => [c.id, this.sessionsOf(c)]))
     });
     this.openStream(this.state.crew);
+    this.watchCrew();
     // Estado del sistema: GET /salud cada pocos segundos (backend caído → "sin conexión"; LLM caído → Orbi no disponible).
     this.pollT = setInterval(() => this.pollSalud(), 8000);
+  }
+  /* Vigila los avisos de TODA la tripulación, no solo del perfil abierto: cada 3 s pide los nuevos de cada uno.
+     - CRÍTICO: Orbi habla siempre (aunque esté silenciado y sea de otra persona) con los datos críticos y su inferencia.
+     - Resto: solo "Revisa los datos de X" (respeta el silencio; como mucho una vez cada 45 s por persona).
+     Lo que ya existía al abrir la app no se lee (sería una avalancha): solo lo que llega después. */
+  watchCrew() {
+    clearInterval(this.watchT); this.notifDesde = {}; this.voiced = new Set(); this.lastCheck = {}; this.critPending = 0;
+    const tick = async () => {
+      if (this.watching) return; this.watching = true;
+      try {
+        for (const c of CREW) {
+          const bid = c.live && OrbitalLive.BACKEND_ID[c.id]; if (!bid) continue;
+          const baseline = this.notifDesde[bid] === undefined;
+          let ns; try { ns = await OrbitalAPI.notificaciones(bid, this.notifDesde[bid] || 0); } catch (e) { continue; }
+          if (!ns.length) { if (baseline) this.notifDesde[bid] = 0; continue; }
+          this.notifDesde[bid] = Math.max(this.notifDesde[bid] || 0, ...ns.map(n => n.id));
+          this.setState(s => { const ids = new Set(s.liveNotifs.map(n => n.id)), nu = ns.filter(n => !ids.has(n.id)); return nu.length ? { liveNotifs: [...s.liveNotifs, ...nu].slice(-80) } : null; });
+          const nuevas = ns.filter(n => !this.voiced.has(n.id)); nuevas.forEach(n => this.voiced.add(n.id));
+          if (!baseline) this.voiceNotifs(c, bid, nuevas);
+        }
+      } finally { this.watching = false; }
+    };
+    tick(); this.watchT = setInterval(tick, 3000);
+  }
+  async voiceNotifs(c, bid, ns) {
+    const V = this.voz(); if (!V || !ns.length) return;
+    const name = c.name.split(' ')[0], crit = ns.filter(n => n.severidad === 'CRITICO');
+    if (crit.length) {
+      let res = null; try { res = await OrbitalAPI.resumen(bid); } catch (e) { }
+      // Interrumpe lo que esté diciendo, salvo otra alerta crítica (esa se respeta y esta va en cola).
+      const interrumpir = !this.critPending; this.critPending++;
+      V.voz.hablar(this.criticalText(name, crit, res), { forzar: true, interrumpir, alTerminar: () => { this.critPending = Math.max(0, this.critPending - 1); } });
+      return;
+    }
+    const now = Date.now(); if (now - (this.lastCheck[bid] || 0) < 45000) return; this.lastCheck[bid] = now;
+    V.voz.hablar(`Revisa los datos de ${name}.`);
+  }
+  // "Alerta crítica para Katya. Ritmo cardíaco en 142 latidos por minuto, taquicardia. Inferencia: … Revisa sus datos ahora."
+  criticalText(name, crit, res) {
+    const med = (res && res.medidas) || {}, L = OrbitalLive, vars = new Set(crit.map(n => n.variable)), partes = [];
+    const NOM = { sueno_duracion: 'Duración del sueño', sueno_eficiencia: 'Eficiencia del sueño', sueno_latencia: 'Latencia de sueño' };
+    const UNI = { bpm: 'latidos por minuto', '%': 'por ciento', mmHg: 'milímetros de mercurio', h: 'horas', min: 'minutos' };
+    const num = v => typeof v === 'number' ? String(Math.round(v * 10) / 10) : String(v);
+    // Además de la medida que disparó el aviso, cualquier otra que esté ahora en nivel crítico (clínico o del modelo personal).
+    Object.keys(med).forEach(k => { const m = med[k]; if (Math.max(L.sevDeCodigo(m.codigo_nivel_clinico), L.sevDeCodigo(m.codigo_estado_modelo)) >= 3) vars.add(k); });
+    vars.forEach(k => {
+      const m = med[k], n = crit.find(x => x.variable === k);
+      if (!m) { if (n) partes.push(n.mensaje); return; }                 // p. ej. aviso cognitivo: se lee el mensaje del backend
+      let t = `${(VARS[k] && VARS[k].label) || NOM[k] || k} en ${num(m.actual)} ${UNI[m.unidad] || m.unidad || ''}`.trim();
+      if (m.nivel_clinico && m.nivel_clinico !== 'NORMAL' && m.interpretacion_clinica) t += `, ${m.interpretacion_clinica}`;
+      const inf = [], ep = m.esperado_personal;
+      if (m.estado_modelo && !/^(NORMAL|SIN_MODELO)$/.test(m.estado_modelo))
+        inf.push(`su modelo personal lo marca como ${m.estado_modelo.toLowerCase()}` + (ep && ep.lower != null ? `; para esta persona se esperaba entre ${num(ep.lower)} y ${num(ep.upper)}` : ''));
+      if (m.deriva && m.deriva.detectada) inf.push(`viene con una deriva lenta ${m.deriva.sentido} de ${num(m.deriva.cambio)}`);
+      if (m.tendencia && m.tendencia !== 'estable') inf.push(`tendencia ${m.tendencia}`);
+      if (inf.length) t += `. Inferencia: ${inf.join('; ')}`;
+      partes.push(t);
+    });
+    return `Alerta crítica para ${name}. ${partes.join('. ')}. Revisa sus datos ahora.`;
   }
   sessionsOf(c) { return c.cog ? { pvt: c.cog.pvt.slice(), dsst: c.cog.dsst.slice(), matrix: c.cog.matrix.slice() } : { pvt: [], dsst: [], matrix: [] }; }
 
@@ -795,10 +869,8 @@ class Component extends DCLogic {
         if (v.sueno_latencia != null) cr.sleep.lat.push(v.sueno_latencia); cr.sleep.meds.push(n.medicacion || null); (cr.sleep.fechas = cr.sleep.fechas || []).push(n.timestamp);
         this.setState(s => ({ chatTick: s.chatTick + 1 })); this.scheduleDetalle(crewId); },
       onNotificacion: n => {
-        this.setState(s => s.liveNotifs.some(x => x.id === n.id) ? null : { liveNotifs: [...s.liveNotifs, n].slice(-40) });
-        // Voz: Orbi solo habla por iniciativa propia ante una alerta CRÍTICA (interrumpe lo que esté diciendo).
-        // El resto de avisos se ven en pantalla; se escuchan si la persona gira la rueda a esa medición.
-        const V2 = this.voz(); if (V2 && this.userActed && n.severidad === 'CRITICO') V2.voz.hablar(V2.textoNotificacion(n, cr.name), { interrumpir: true });
+        this.setState(s => s.liveNotifs.some(x => x.id === n.id) ? null : { liveNotifs: [...s.liveNotifs, n].slice(-80) });
+        // La voz de los avisos no se dispara aquí (este stream es solo del perfil abierto): la lleva watchCrew(), para toda la tripulación.
         this.scheduleDetalle(crewId);
       },
       onFin: () => { this.setState({ ended: true }); this.refreshDetalle(crewId); }
@@ -809,7 +881,9 @@ class Component extends DCLogic {
   async restartLive() {
     try { await OrbitalAPI.reiniciarSimulacion(); } catch (e) { return this.pollSalud(); }
     this.setState({ liveNotifs: [], ended: false });
-    this.openStream(this.state.crew);                         // el snapshot nuevo reemplaza series y sueño
+    // El backend borra los avisos y reinicia sus ids: se vigila desde 0 (sin línea base, todo lo que llegue es nuevo).
+    this.voiced = new Set(); CREW.forEach(c => { const b = OrbitalLive.BACKEND_ID[c.id]; if (b) this.notifDesde[b] = 0; });
+    this.openStream(this.state.crew);                        // el snapshot nuevo reemplaza series y sueño
   }
   componentDidUpdate() {
     this.applyTheme();
@@ -822,7 +896,7 @@ class Component extends DCLogic {
   shiftDial(d) { this.setState(s => ({ dialPos: s.dialPos + d, dialDir: d })); this.speakViewSoon(); }
   goDial(i) { this.setState(s => { const cur = ((s.dialPos % 4) + 4) % 4; let df = (((i - cur) % 4) + 4) % 4; if (df > 2) df -= 4; if (df === 2) df = s.dialDir >= 0 ? 2 : -2; return { dialPos: s.dialPos + df, dialDir: df || s.dialDir }; }); this.speakViewSoon(); }
   // La persona giró la rueda: Orbi lee el estado de esa medición. Con espera corta para no hablar en cada paso de un giro rápido.
-  speakViewSoon() { clearTimeout(this.viewT); this.viewT = setTimeout(() => { const V = this.voz(); if (V && this.state.view !== 'chat') V.voz.hablar(this.viewText(), { interrumpir: true }); }, 500); }
+  speakViewSoon() { clearTimeout(this.viewT); this.viewT = setTimeout(() => { const V = this.voz(); if (V && this.state.view !== 'chat') V.voz.hablar(this.viewText(), { interrumpir: !this.critPending }); }, 500); }
   viewText() {
     const S = this.state, cr = this.crewObj(), first = cr.name.split(' ')[0], key = cr.order[((S.dialPos % 4) + 4) % 4], label = VIEWS[key].label;
     if (cr.noData) return `${label}: aún no tengo lecturas de ${first}.`;
@@ -919,7 +993,7 @@ class Component extends DCLogic {
   // Botón de silencio: apaga TODA la voz de Orbi (avisos, rueda, chat) y lo recuerda; al reactivarla lee el resumen.
   toggleMute(summary) {
     const V = this.voz(); if (!V) return;
-    if (this.state.muted) { V.voz.activar(true); this.setState({ muted: false }); V.voz.hablar(summary, { interrumpir: true }); }
+    if (this.state.muted) { V.voz.activar(true); this.setState({ muted: false }); V.voz.hablar(summary, { interrumpir: !this.critPending }); }
     else { clearTimeout(this.viewT); this.lector && this.lector.cancelar(); V.voz.activar(false); this.setState({ muted: true, vozOn: false }); }
   }
   clearPvt() { clearTimeout(this.pvtT); clearInterval(this.pvtTick); clearTimeout(this.pvtMsgT); }

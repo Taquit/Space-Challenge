@@ -37,7 +37,7 @@ SYSTEM_FISIO = (
     "cifras dadas, no inventes valores, indica si es APTO o NO APTO y aclara que es orientativo. "
     "Si hay resultados cognitivos, cita solo sus cifras, di que son orientativos y que una sesión atípica "
     "puede deberse a fatiga, distracción o poco esfuerzo; nunca los uses para declarar no apto. "
-    "Para esos datos no hace falta citar documentos."
+    "Si la respuesta sale solo de esos datos, termina con [Datos del tripulante] en lugar de citar un PDF."
 )
 
 
