@@ -1,7 +1,8 @@
 """Catálogo de códigos de respuesta para el frontend. Documentado en docs/CODIGOS.md.
 
 Familias:  1xxx estado general · 2xxx nivel clínico · 3xxx modelo personal · 4xxx tendencia/deriva
-           5xxx hallazgos (motivos/observaciones) · 6xxx notificaciones · 7xxx chat · 9xxx errores
+           5xxx hallazgos (5016-5017 sueño, 5018-5020 cognición) (motivos/observaciones) · 6xxx notificaciones · 7xxx chat
+           8xxx nivel cognitivo · 9xxx errores
 """
 # nombre, descripción
 CATALOGO = {
@@ -42,6 +43,11 @@ CATALOGO = {
     5013: ("ANOMALIA_PERSONAL", "Anomalía respecto a su modelo, pero dentro del rango clínico."),
     5014: ("DESVIACION_PERSONAL_LEVE", "Desviación leve de su patrón personal."),
     5015: ("ANOMALIA_Y_FUERA_DE_RANGO", "Anomalía personal y además fuera de rango clínico."),
+    5016: ("SUENO_DEFICIENTE", "Sueño por debajo de lo esperado (observación; no decide aptitud por sí solo)."),
+    5017: ("SUENO_DEFICIENTE_SOSTENIDO", "Varias noches seguidas con sueño en alerta clínica."),
+    5018: ("RENDIMIENTO_COGNITIVO_REDUCIDO", "Nivel cognitivo en VIGILAR o peor (observación)."),
+    5019: ("SUENO_Y_COGNICION", "Sueño deficiente sostenido junto con caída cognitiva."),
+    5020: ("FISIOLOGIA_Y_COGNICION", "Desviación fisiológica junto con caída cognitiva."),
     # --- 6xxx: notificaciones ---
     6001: ("NOTIF_VIGILAR", "Notificación de vigilancia."),
     6010: ("NOTIF_ALERTA", "Notificación de alerta."),
@@ -49,15 +55,22 @@ CATALOGO = {
     6020: ("NOTIF_DERIVA", "Notificación por deriva lenta."),
     # --- 7xxx: chat ---
     7001: ("RESPUESTA_OK", "Respuesta del agente generada."),
+    # --- 8xxx: nivel cognitivo (pruebas PVT, DSST y Matrix frente a la línea base de cada persona) ---
+    8000: ("COG_SIN_LINEA_BASE", "Aún no hay sesiones de línea base suficientes."),
+    8001: ("COG_NORMAL", "Rendimiento dentro de lo habitual para esta persona."),
+    8002: ("COG_VIGILAR", "Rendimiento algo peor que su línea base."),
+    8010: ("COG_ALERTA", "Rendimiento claramente peor que su línea base."),
     # --- 9xxx: errores ---
     9001: ("TRIPULANTE_NO_ENCONTRADO", "El tripulante no existe."),
     9002: ("VARIABLE_DESCONOCIDA", "La medida solicitada no existe."),
     9003: ("LLM_NO_DISPONIBLE", "LM Studio no responde."),
+    9004: ("SESION_COGNITIVA_INVALIDA", "La sesión enviada no cumple el esquema."),
 }
 
 NIVEL_CLINICO = {"NORMAL": 2001, "VIGILAR": 2002, "ALERTA": 2010, "CRITICO": 2011}
 ESTADO_MODELO = {"SIN_MODELO": 3000, "NORMAL": 3001, "ADVERTENCIA": 3002, "ANOMALIA": 3010}
 TENDENCIA = {"estable": 4001, "ascendente": 4002, "descendente": 4003}
+NIVEL_COGNITIVO = {"SIN_LINEA_BASE": 8000, "NORMAL": 8001, "VIGILAR": 8002, "ALERTA": 8010}
 NOTIF_SEVERIDAD = {"VIGILAR": 6001, "ALERTA": 6010, "CRITICO": 6011}
 
 

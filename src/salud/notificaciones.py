@@ -7,7 +7,7 @@ import json
 import threading
 
 from src import config
-from src.salud import codigos, inferencia
+from src.salud import codigos, cognitivo, inferencia
 from src.salud.umbrales import U
 from src.salud import referencias as ref
 
@@ -18,6 +18,8 @@ _procesado = {}      # usuario -> índice de la última lectura procesada
 _sin = {}            # (usuario, variable) -> lecturas seguidas sin deriva
 REARME = U["DERIVA_REARME_LECTURAS"]          # lecturas sin deriva para volver a avisar
 _deriva = {}         # (usuario, variable) -> True si ya se avisó de la deriva vigente
+_cog_alerta = {}     # usuario -> True si ya se avisó de la alerta cognitiva sostenida vigente
+_cog_deriva = {}     # usuario -> True si ya se avisó de la deriva cognitiva vigente
 
 _MODELO = {"NORMAL": ref.NORMAL, "SIN_MODELO": ref.NORMAL, "ADVERTENCIA": ref.VIGILAR, "ANOMALIA": ref.ALERTA}
 
@@ -33,6 +35,7 @@ def _guardar():
 def reiniciar():
     with _lock:
         _lista.clear(), _ultimo.clear(), _procesado.clear(), _deriva.clear(), _sin.clear()
+        _cog_alerta.clear(), _cog_deriva.clear()
         _guardar()
 
 
@@ -114,6 +117,62 @@ def sincronizar(usuario, serie, hasta):
                 nuevas += evaluar_deriva(usuario, ts, v, acum[v])
     _procesado[usuario] = hasta
     return nuevas
+
+
+def sincronizar_sueno(usuario, noches, hasta):
+    """Como `sincronizar`, pero para las noches [(fecha, {variable_de_sueño: valor})] hasta el índice `hasta`.
+    El sueño no tiene modelo personal: avisa por límite clínico (>= ALERTA) y por deriva lenta."""
+    nuevas = []
+    clave = (usuario, "sueno")
+    ini = _procesado.get(clave, -1) + 1
+    if hasta < ini:
+        return nuevas
+    acum = {}
+    for i in range(0, hasta + 1):
+        ts, valores = noches[i]
+        for v, x in valores.items():
+            acum.setdefault(v, []).append((ts, x))
+        if i < ini:
+            continue
+        nuevas += evaluar_lectura(usuario, ts, valores, {})
+        for v in valores:
+            nuevas += evaluar_deriva(usuario, ts, v, acum[v])
+    _procesado[clave] = hasta
+    return nuevas
+
+
+def sincronizar_cognitivo(usuario, sesiones):
+    """Procesa las sesiones cognitivas aún no vistas. Notifica una vez por ALERTA sostenida (6010) y por deriva (6020);
+    se rearma al desaparecer. Un VIGILAR o una ALERTA aislada no notifica (se trata como "repetir la prueba")."""
+    nuevas = []
+    sesiones = sorted(sesiones, key=cognitivo._fecha)
+    clave = (usuario, "cognitivo")
+    with _lock:
+        ini = _procesado.get(clave, -1) + 1
+        for i in range(ini, len(sesiones)):
+            ev = cognitivo.evaluar(sesiones[: i + 1])
+            ts = sesiones[i]["fecha"]
+            if ev["alerta_sostenida"] and not _cog_alerta.get(usuario):
+                nuevas.append(_nueva(usuario, ts, ref.ALERTA, 6010, "cognitivo",
+                                     f"Rendimiento cognitivo claramente peor que su línea base en {U['COG_PERSISTENCIA_SESIONES']} sesiones seguidas. "
+                                     + cognitivo.AVISO))
+            _cog_alerta[usuario] = ev["alerta_sostenida"]
+            d = ev["deriva"]
+            if d["detectada"] and not _cog_deriva.get(usuario):
+                nuevas.append(_nueva(usuario, ts, ref.VIGILAR, 6020, "cognitivo",
+                                     f"cognitivo: deriva lenta del rendimiento ({', '.join(d['variables'])})"))
+            _cog_deriva[usuario] = d["detectada"]
+        _procesado[clave] = len(sesiones) - 1
+        if nuevas:
+            _guardar()
+    return nuevas
+
+
+def _nueva(usuario, ts, severidad, cod, variable, mensaje):
+    n = {"id": len(_lista) + 1, "usuario": usuario, "timestamp": ts, "severidad": severidad,
+         "codigo": cod, "tipo": codigos.nombre(cod), "variable": variable, "mensaje": mensaje}
+    _lista.append(n)
+    return n
 
 
 def listar(usuario=None, desde=0):

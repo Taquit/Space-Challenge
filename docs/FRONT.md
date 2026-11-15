@@ -36,12 +36,20 @@ export interface Tripulante {
   id: string;                    // "astro_1"
   variables: string[];           // ["presion_diastolica","presion_sistolica","pulso","spo2"]
   lecturas_disponibles: number;  // 144
+  noches_disponibles: number;    // noches de sueño; 0 = sin datos de sueño (astro_3)
 }
 
 export interface Medicion {
   valor: number;
   unidad: string | null;         // "bpm" | "%" | "mmHg" | null si la variable no tiene unidad conocida
-  timestamp: string;             // ISO 8601 SIN zona horaria: "2026-11-01T00:30:00"
+  timestamp: string;             // ISO 8601 SIN zona horaria: "2026-11-01T00:30:00"; en sueño, solo la fecha "2004-09-07"
+}
+
+export interface Noche {
+  timestamp: string;             // fecha de la noche "YYYY-MM-DD"
+  valores: Record<string, number>;   // { sueno_latencia, sueno_duracion, sueno_eficiencia }
+  fase: string | null;           // "PRE_TEST" | "IN_TEST" | "POST_TEST"
+  medicacion: string | null;     // p. ej. "Ambien 5mg"
 }
 
 export interface Lectura {
@@ -51,9 +59,10 @@ export interface Lectura {
 
 export interface EstadoSalud {
   usuario: string;
-  timestamp_actual: string;
+  timestamp_actual: string | null;
   actual: Record<string, Medicion>;  // último valor de cada variable
   historial: Lectura[];              // de la más antigua a la más reciente
+  sueno: Noche[];                    // noches transcurridas; [] si no hay datos de sueño
   simulado: boolean;                 // true = reproducción de datos grabados, no un sensor real
 }
 
@@ -80,6 +89,12 @@ export interface Salud {
 | `spo2` | % | Saturación de oxígeno |
 | `presion_sistolica` | mmHg | Presión arterial sistólica |
 | `presion_diastolica` | mmHg | Presión arterial diastólica |
+| `sueno_latencia` | min | Tiempo en dormirse (por noche) |
+| `sueno_duracion` | h | Duración del sueño (por noche) |
+| `sueno_eficiencia` | % | Eficiencia del sueño (por noche) |
+
+Las variables `sueno_*` llegan **una vez por noche**, no cada 10 min: por SSE vienen en el evento `sueno` (no en `lectura`) y solo para `astro_1` y `astro_2`.
+Píntenlas como gráfica/tarjeta aparte (eje = fecha de la noche) y muestren `medicacion` cuando no sea `null`.
 
 No hardcodeen la lista: léanla de `GET /tripulantes` (`variables`) y pinten una tarjeta/gráfica por cada una; así, si se agregan variables, la UI las toma sola. Las claves de `valores` y `actual` coinciden con esos nombres.
 
@@ -202,7 +217,50 @@ curl -N -X POST localhost:8000/preguntar/stream -H 'Content-Type: application/js
      -d '{"pregunta": "¿Cuál es el límite de dosis de radiación en toda la carrera?"}'
 ```
 
-## 9. Voz: leer en voz alta lo que devuelve el backend
+## 9. Pruebas cognitivas (PVT, DSST, Matrix)
+
+El repo no contiene el front: las pruebas en pantalla se implementan allí a partir de este contrato. Plan completo en [`COGNITIVO.md`](COGNITIVO.md). Orientativo, no es diagnóstico médico.
+Los tiempos de reacción se miden en el navegador con `performance.now()` (mismo equipo en todas las sesiones). Orden sugerido: PVT → DSST → Matrix. Se puede enviar una sesión con solo alguna prueba (al menos una).
+
+```ts
+export interface SesionCognitiva {            // POST /tripulantes/{id}/cognitivo
+  id?: number;                                // lo asigna el servidor
+  fecha: string;                              // ISO 8601 con zona, "2026-11-15T09:30:00-06:00"
+  forma: string;                              // forma alternativa ("A", "B", ...)
+  semilla: number;                            // semilla del generador de estímulos
+  familiarizacion: boolean;                   // true en la primera sesión: se descarta de la línea base
+  pruebas: {
+    pvt?:    { rt_media_ms: number; rt_mediana_ms: number; lapsos: number;      // lapso = respuesta > 500 ms
+               falsos_inicios: number; n_estimulos: number };
+    dsst?:   { correctas: number; intentos: number; precision: number;          // precision 0-1
+               throughput: number; rt_media_ms: number };                        // throughput = correctas / segundo (90 s)
+    matrix?: { correctas: number; intentos: number; precision: number;          // hasta 12 ítems
+               tiempo_total_s: number; throughput: number };
+  };
+  contexto?: { comentario: string };          // p. ej. "fatiga", "distracción"
+}
+export type NivelCognitivo = "SIN_LINEA_BASE" | "NORMAL" | "VIGILAR" | "ALERTA";
+export interface BloqueCognitivo {            // /resumen.cognitivo, /aptitud.cognitivo, /cognitivo/resumen
+  estado: NivelCognitivo;
+  codigo_nivel: 8000 | 8001 | 8002 | 8010;
+  linea_base_completa: boolean;               // false = faltan sesiones: avisar, no interpretar
+  sesiones_validas: number; sesiones_linea_base: number;
+  linea_base: Record<string, { media: number; sd: number; sd_efectiva: number; n: number }>;
+  ultima: { id: number; fecha: string; nivel: string; metricas: Record<string, { valor: number; z: number; nivel: string }> } | null;
+  alerta_sostenida: boolean;
+  deriva: { detectada: boolean; codigo: 4101 | 4110; variables: string[]; z_promedio: Record<string, number> };
+  observaciones: Evento[];                    // 5018-5020 y 5005
+  recomendacion: string | null;
+  orientativo: string;                        // mostrar siempre junto a los resultados
+}
+```
+
+- Respuesta de `POST`: `201 { sesion, estado, codigo_nivel, notificaciones[] }`. Error de esquema: `422` con `detail.codigo` **9004**.
+- Mostrar 8000 como "completando línea base (n de 3)", no como error. 8001 verde, 8002 amarillo, 8010 rojo.
+- Una sesión atípica suele deberse a fatiga, distracción o poco esfuerzo: ofrecer "repetir la sesión" y no presentar un 8010 aislado como hallazgo (solo notifica si es sostenido o hay deriva; notificaciones con `variable: "cognitivo"`).
+- Las pruebas no deben copiar las originales (Penn CNB, ANAM): estímulos generados por algoritmo, sin fotografías.
+
+## 10. Voz: leer en voz alta lo que devuelve el backend
 
 El front lee en voz alta las respuestas del chat y las notificaciones. Se hace **en el navegador** con la Web Speech API (`speechSynthesis`): sin dependencias, sin endpoint nuevo y sin internet. Copien [`front/voz.ts`](front/voz.ts) a su proyecto.
 

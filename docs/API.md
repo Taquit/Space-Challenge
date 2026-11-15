@@ -115,6 +115,12 @@ Datos de `data/fisiologico.json`: 3 tripulantes (`astro_1` a `astro_3`) con `pul
 `spo2` (%), `presion_sistolica` y `presion_diastolica` (mmHg), una lectura cada 10 min durante
 un día (144 lecturas por tripulante). Código: `src/api/salud.py` y `src/datos/salud.py`.
 
+**Sueño:** `data/sueno.json` (generado con `python scripts/importar_sueno.py` a partir de `data/sleep/`, actigrafía del estudio BRSM) es un
+resumen por **noche**, no una serie de 10 min: `sueno_latencia` (min), `sueno_duracion` (h) y `sueno_eficiencia` (%), más la medicación
+registrada. Solo `astro_1` (69 noches) y `astro_2` (6 noches) tienen sueño; `astro_3` no (sus `noches_disponibles` son 0 y `sueno` sale vacío).
+Las fechas son de 2004 (datos reales del estudio): se reproducen **una noche cada `SIM_SEGUNDOS_POR_LECTURA` segundos**, sin relación con el
+calendario de los signos vitales. El sueño no tiene modelo personal (`estado_modelo: "SIN_MODELO"`): se evalúa por límites clínicos, línea base y deriva.
+
 > **Simulado:** el archivo es un día ya grabado, así que el backend lo reproduce como una
 > transmisión en vivo: cada `SIM_SEGUNDOS_POR_LECTURA` segundos (2 por defecto) "ocurre" una
 > lectura nueva desde que arranca el servidor. Cada respuesta incluye `"simulado": true`.
@@ -122,7 +128,7 @@ un día (144 lecturas por tripulante). Código: `src/api/salud.py` y `src/datos/
 
 ### `GET /tripulantes`
 ```json
-[{"id": "astro_1", "variables": ["presion_diastolica", "presion_sistolica", "pulso", "spo2"], "lecturas_disponibles": 144}]
+[{"id": "astro_1", "variables": ["presion_diastolica", "presion_sistolica", "pulso", "spo2"], "lecturas_disponibles": 144, "noches_disponibles": 0}]
 ```
 
 ### `GET /tripulantes/{id}/salud?limite=60`
@@ -139,9 +145,14 @@ Foto actual: último valor de cada variable y las últimas `limite` lecturas (1 
   "historial": [
     {"timestamp": "2026-11-01T00:20:00", "valores": {"pulso": 61.7, "spo2": 97.6, "presion_sistolica": 113.0, "presion_diastolica": 70.1}}
   ],
+  "sueno": [
+    {"timestamp": "2004-09-07", "valores": {"sueno_latencia": 14, "sueno_duracion": 7.73, "sueno_eficiencia": 92.1}, "fase": "PRE_TEST", "medicacion": null}
+  ],
   "simulado": true
 }
 ```
+`actual` incluye también la última noche de cada variable de sueño (`timestamp` = fecha de la noche). `sueno` lista las noches transcurridas
+(las últimas `limite`; `[]` si el tripulante no tiene sueño). `timestamp_actual` es `null` solo si no hay ninguna lectura ni noche aún.
 `404` si el tripulante no existe.
 
 ### `GET /tripulantes/{id}/salud/stream?limite=60`
@@ -151,7 +162,9 @@ Datos en vivo por SSE. Eventos:
 |---|---|---|
 | `snapshot` | Mismo JSON que `GET .../salud` | Al conectar |
 | `lectura` | `{"timestamp": "...", "valores": {"pulso": 55.5, ...}}` | Cada lectura nueva |
-| `fin` | `""` | Terminó la reproducción (no hay más datos) |
+| `sueno` | `{"timestamp": "2004-09-12", "valores": {"sueno_eficiencia": 74.2, ...}, "fase": "IN_TEST", "medicacion": null}` | Cada noche nueva (solo tripulantes con sueño) |
+| `notificacion` | `{id, usuario, timestamp, severidad, variable, mensaje}` | Alerta nueva (también por sueño) |
+| `fin` | `""` | Terminó la reproducción (lecturas y noches) |
 
 Cada cierto tiempo llega un comentario `: ping` de keep-alive; se puede ignorar.
 
@@ -184,6 +197,10 @@ generado con `python -m src.series.analizar`). Los límites clínicos (`src/salu
 - `GET /tripulantes/{id}/aptitud`: `{apto, nivel, motivos, observaciones, recomendaciones, derivadas}`.
 - `GET /tripulantes/{id}/notificaciones?desde=<id>`: alertas generadas al empeorar el estado de una medida (sin repetir).
 - SSE `/tripulantes/{id}/salud/stream`: nuevo evento `notificacion` con `{id, usuario, timestamp, severidad, variable, mensaje}`.
+- `POST /tripulantes/{id}/cognitivo`: guarda una sesión de pruebas cognitivas (formato en [`FRONT.md`](FRONT.md) §9) → `201 {sesion, estado, codigo_nivel, notificaciones}`. Sesión inválida: `422` con `detail.codigo` 9004.
+- `GET /tripulantes/{id}/cognitivo`: historial de sesiones, cada una con su `evaluacion` frente a la línea base.
+- `GET /tripulantes/{id}/cognitivo/resumen`: línea base, `estado` (`SIN_LINEA_BASE`/`NORMAL`/`VIGILAR`/`ALERTA`), `codigo_nivel` (8xxx), deriva, `alerta_sostenida` y `observaciones` (5018-5020, 5005). Orientativo.
+- `/resumen` y `/aptitud` añaden el bloque `cognitivo` (solo si el tripulante tiene sesiones; sin él, la respuesta no cambia). Lo cognitivo nunca produce 1010/1011.
 - `POST /preguntar` y `/preguntar/stream`: nuevos campos opcionales `usuario` y `variables`; el agente resume esas medidas y la aptitud usando los datos calculados.
 
 > **Códigos:** todas las respuestas anteriores incluyen códigos numéricos (`1001` saludable, `1010` riesgo, etc.) y los errores llevan `detail.codigo`. Catálogo completo en [`docs/CODIGOS.md`](CODIGOS.md) y en `GET /tripulantes/codigos`.

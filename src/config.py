@@ -50,6 +50,11 @@ VARIABLES_ANALIZADAS = {
     "presion_sistolica": "systolic_bp",
     "presion_diastolica": "diastolic_bp",
 }
+# Sueño: resumen por noche (data/sueno.json, ver scripts/importar_sueno.py). Sin modelo personal.
+DATOS_SUENO = _ruta("DATOS_SUENO", RAIZ / "data" / "sueno.json")
+# Cognitivo: sesiones de pruebas (PVT, DSST, Matrix) en data/cognitivo.json. Ver docs/COGNITIVO.md.
+DATOS_COGNITIVO = _ruta("DATOS_COGNITIVO", RAIZ / "data" / "cognitivo.json")
+VARIABLES_SUENO = ("sueno_latencia", "sueno_duracion", "sueno_eficiencia")
 MODELOS_USUARIO = RAIZ / "models" / "series" / "usuarios"   # un modelo por usuario y variable: <usuario>_<variable>.joblib
 NOTIFICACIONES = RAIZ / "data" / "resultados" / "notificaciones.json"
 MIN_ENTRENAMIENTO = 60   # mediciones mínimas del usuario para entrenar su propio modelo

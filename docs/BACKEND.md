@@ -25,6 +25,8 @@ Todo corre local y offline. Procesos: el backend (puerto 8000) y el servidor de 
 | `src/api/salud.py` | Router `/tripulantes/...`: listado, foto actual, stream en vivo |
 | `src/api/sse.py` | Formato de eventos Server-Sent Events |
 | `src/datos/salud.py` | Carga y agrupa `fisiologico.json`; reloj de la simulación en vivo |
+| `src/datos/cognitivo.py` | Esquema y lectura/escritura de `data/cognitivo.json` (sesiones PVT, DSST, Matrix) |
+| `src/salud/cognitivo.py` | Inferencia cognitiva: línea base, z de deterioro, persistencia, deriva, patrones (ver `COGNITIVO.md`) |
 | `src/rag/prepare_chunks.py` | Limpieza y chunking de PDFs |
 | `src/rag/ingest.py` | Construye el índice FAISS a partir de los PDFs |
 | `src/rag/agente.py` | Búsqueda + prompt + generación con el LLM |
@@ -73,6 +75,19 @@ El modelo corre en CPU, así que un `threading.Lock` serializa las consultas al 
 ```
 ordenado por tiempo. Las unidades salen del diccionario `UNIDADES` (pulso bpm, spo2 %, presiones mmHg); una variable nueva sin unidad conocida llega con `unidad: null`.
 
+### Datos de sueño
+`data/sueno.json` (lista de noches `{usuario, timestamp, fase, medicacion, valores}`) sale de `data/sleep/` con `python scripts/importar_sueno.py`: mapea
+los sujetos del estudio a tripulantes (`C1G0003→astro_1`, `C1G0002→astro_2`), promedia los registros duplicados de una misma noche y convierte h:mm a minutos/horas.
+`Monitor` los carga aparte (`self.sueno`) y los reproduce con su propio índice (`indice_sueno`): una noche cada `SIM_SEGUNDOS_POR_LECTURA` s.
+`series_por_variable` las une a los signos vitales, así que resumen, aptitud, notificaciones y chat las ven como una variable más (sin modelo personal).
+Ruta configurable con `DATOS_SUENO`. Un tripulante sin sueño (astro_3) funciona igual, sin esas variables.
+
+### Datos cognitivos
+`data/cognitivo.json` (`[{usuario, sesiones: [...]}]`, ruta configurable con `DATOS_COGNITIVO`) guarda las métricas crudas de cada sesión; `scripts/simular_cognitivo.py`
+genera sesiones de demo (astro_1 estable, astro_2 caída súbita, astro_3 deriva lenta). `DatosCognitivo` valida el esquema (pydantic) y guarda con `POST /tripulantes/{id}/cognitivo`.
+A diferencia de los vitales y el sueño, **no se reproducen en el tiempo simulado**: se leen completas. Las inferencias se recalculan en cada lectura. Los resultados entran a
+`/aptitud`, `/resumen`, las notificaciones (`sincronizar_cognitivo`) y el contexto del chat (`estado_fisiologico(..., sesiones_cog)`). Solo observa: nunca produce no apto.
+
 ### Simulación de "tiempo real"
 El archivo es un día ya grabado, así que se reproduce como transmisión en vivo:
 - Al arrancar (o al `POST /tripulantes/reiniciar-simulacion`) se guarda `t0`.
@@ -82,10 +97,11 @@ El archivo es un día ya grabado, así que se reproduce como transmisión en viv
 Para un sensor real solo hay que sustituir `indice_actual()` y la carga de datos; la API y el contrato no cambian.
 
 ### Stream (`GET /tripulantes/{id}/salud/stream`)
-1. Envía `snapshot` (estado completo).
+1. Envía `snapshot` (estado completo, con `sueno`).
 2. Cada 0.5 s compara el índice actual con el último enviado; si avanzó, envía un evento `lectura` por **cada** lectura nueva (no se pierde ninguna si el cliente va lento).
+   También envía un evento `sueno` por cada noche nueva (mismo reloj, índice propio).
 3. Cada ~10 s sin novedades envía `: ping` (keep-alive).
-4. Al llegar al final envía `fin` y cierra. Si el cliente se desconecta, termina.
+4. Al llegar al final de lecturas **y** noches envía `fin` y cierra. Si el cliente se desconecta, termina.
 
 El stream no usa el candado del RAG: la salud funciona aunque el chat esté ocupado o el LLM apagado.
 

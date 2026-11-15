@@ -37,6 +37,9 @@ const NOMBRES: Record<string, string> = {
   spo2: "saturación de oxígeno",
   presion_sistolica: "presión sistólica",
   presion_diastolica: "presión diastólica",
+  sueno_latencia: "latencia de sueño",
+  sueno_duracion: "duración del sueño",
+  sueno_eficiencia: "eficiencia del sueño",
   mmHg: "milímetros de mercurio",
   bpm: "latidos por minuto",
 };
@@ -46,7 +49,7 @@ export function limpiar(texto: string): string {
   return texto
     .replace(/\[[^\]]*\]/g, "")                            // citas: [nasa 2.pdf, pág. 39]
     .replace(/[*#`>|]/g, "")                               // markdown
-    .replace(/\b(spo2|presion_sistolica|presion_diastolica|mmHg|bpm)\b/gi,
+    .replace(/\b(spo2|presion_sistolica|presion_diastolica|sueno_latencia|sueno_duracion|sueno_eficiencia|mmHg|bpm)\b/gi,
              m => NOMBRES[m] ?? NOMBRES[m.toLowerCase()] ?? m)
     .replace(/(\d)\.(\d)/g, "$1,$2")                       // 97.5 -> "97 coma 5", no "97. 5"
     .replace(/\s*=\s*/g, " ")

@@ -30,6 +30,22 @@ _REGLAS = {
         (lambda v: v < U["DIASTOLICA_ALERTA_MIN"], ALERTA, "hipotensión diastólica"), (lambda v: v >= U["DIASTOLICA_ALERTA_MAX"], ALERTA, "hipertensión diastólica"),
         (lambda v: v >= U["DIASTOLICA_VIGILAR_MAX"], VIGILAR, "presión diastólica elevada"),
     ],
+    # Sueño (una lectura = una noche)
+    "sueno_eficiencia": [
+        (lambda v: v < U["SUENO_EFICIENCIA_CRITICO_MIN"], CRITICO, "eficiencia de sueño muy baja"),
+        (lambda v: v < U["SUENO_EFICIENCIA_ALERTA_MIN"], ALERTA, "eficiencia de sueño baja"),
+        (lambda v: v < U["SUENO_EFICIENCIA_VIGILAR_MIN"], VIGILAR, "eficiencia de sueño reducida"),
+    ],
+    "sueno_duracion": [
+        (lambda v: v < U["SUENO_DURACION_CRITICO_MIN"], CRITICO, "privación severa de sueño"),
+        (lambda v: v < U["SUENO_DURACION_ALERTA_MIN"], ALERTA, "sueño insuficiente"),
+        (lambda v: v < U["SUENO_DURACION_VIGILAR_MIN"], VIGILAR, "sueño algo corto"),
+    ],
+    "sueno_latencia": [
+        (lambda v: v > U["SUENO_LATENCIA_CRITICO_MAX"], CRITICO, "latencia de sueño muy larga"),
+        (lambda v: v > U["SUENO_LATENCIA_ALERTA_MAX"], ALERTA, "latencia de sueño larga"),
+        (lambda v: v > U["SUENO_LATENCIA_VIGILAR_MAX"], VIGILAR, "latencia de sueño algo larga"),
+    ],
 }
 
 

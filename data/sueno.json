@@ -1,0 +1,827 @@
+[
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-07",
+  "fase": "PRE_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 14,
+   "sueno_duracion": 7.73,
+   "sueno_eficiencia": 92.1
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-08",
+  "fase": "PRE_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 6,
+   "sueno_duracion": 7.83,
+   "sueno_eficiencia": 95.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-09",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 0,
+   "sueno_duracion": 7.87,
+   "sueno_eficiencia": 90.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-10",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 8,
+   "sueno_duracion": 7.65,
+   "sueno_eficiencia": 85.5
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-11",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 20,
+   "sueno_duracion": 7.52,
+   "sueno_eficiencia": 88.6
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-12",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 11,
+   "sueno_duracion": 7.68,
+   "sueno_eficiencia": 84.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-13",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 7,
+   "sueno_duracion": 7.47,
+   "sueno_eficiencia": 85.7
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-14",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 61,
+   "sueno_duracion": 6.82,
+   "sueno_eficiencia": 73.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-15",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 9.0,
+   "sueno_duracion": 7.78,
+   "sueno_eficiencia": 90.0
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-16",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 22,
+   "sueno_duracion": 7.37,
+   "sueno_eficiencia": 85.0
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-17",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 20.7,
+   "sueno_duracion": 7.58,
+   "sueno_eficiencia": 83.4
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-18",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 28.7,
+   "sueno_duracion": 7.49,
+   "sueno_eficiencia": 83.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-19",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 32,
+   "sueno_duracion": 7.38,
+   "sueno_eficiencia": 82.0
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-20",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 54.7,
+   "sueno_duracion": 7.06,
+   "sueno_eficiencia": 78.5
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-21",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 22.7,
+   "sueno_duracion": 7.59,
+   "sueno_eficiencia": 80.4
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-22",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 36.7,
+   "sueno_duracion": 7.36,
+   "sueno_eficiencia": 77.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-23",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 27.3,
+   "sueno_duracion": 7.51,
+   "sueno_eficiencia": 84.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-24",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 24,
+   "sueno_duracion": 7.57,
+   "sueno_eficiencia": 82.4
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-25",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 21.3,
+   "sueno_duracion": 7.61,
+   "sueno_eficiencia": 83.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-26",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 28.7,
+   "sueno_duracion": 7.47,
+   "sueno_eficiencia": 82.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-27",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 42,
+   "sueno_duracion": 7.14,
+   "sueno_eficiencia": 81.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-28",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 48.7,
+   "sueno_duracion": 6.91,
+   "sueno_eficiencia": 74.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-29",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 22.7,
+   "sueno_duracion": 7.59,
+   "sueno_eficiencia": 86.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-09-30",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 54,
+   "sueno_duracion": 6.93,
+   "sueno_eficiencia": 78.1
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-01",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 18.7,
+   "sueno_duracion": 7.58,
+   "sueno_eficiencia": 90.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-02",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 25mg",
+  "valores": {
+   "sueno_latencia": 22.7,
+   "sueno_duracion": 7.59,
+   "sueno_eficiencia": 88.6
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-03",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 32,
+   "sueno_duracion": 7.43,
+   "sueno_eficiencia": 84.0
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-04",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 51,
+   "sueno_duracion": 7.02,
+   "sueno_eficiencia": 80.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-05",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 36,
+   "sueno_duracion": 7.37,
+   "sueno_eficiencia": 86.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-06",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 31,
+   "sueno_duracion": 7.37,
+   "sueno_eficiencia": 87.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-07",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 47,
+   "sueno_duracion": 7.18,
+   "sueno_eficiencia": 85.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-08",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 25mg",
+  "valores": {
+   "sueno_latencia": 38,
+   "sueno_duracion": 7.31,
+   "sueno_eficiencia": 85.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-09",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 39.3,
+   "sueno_duracion": 4.87,
+   "sueno_eficiencia": 82.1
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-10",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 25mg",
+  "valores": {
+   "sueno_latencia": 30.7,
+   "sueno_duracion": 7.29,
+   "sueno_eficiencia": 85.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-11",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 25mg",
+  "valores": {
+   "sueno_latencia": 48,
+   "sueno_duracion": 7.17,
+   "sueno_eficiencia": 83.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-12",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 31.3,
+   "sueno_duracion": 7.38,
+   "sueno_eficiencia": 81.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-13",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 25mg",
+  "valores": {
+   "sueno_latencia": 36,
+   "sueno_duracion": 7.36,
+   "sueno_eficiencia": 84.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-14",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 56.7,
+   "sueno_duracion": 6.94,
+   "sueno_eficiencia": 76.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-15",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 31.3,
+   "sueno_duracion": 7.44,
+   "sueno_eficiencia": 85.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-16",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 30.7,
+   "sueno_duracion": 7.46,
+   "sueno_eficiencia": 84.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-17",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 28.7,
+   "sueno_duracion": 7.49,
+   "sueno_eficiencia": 83.5
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-18",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 57.3,
+   "sueno_duracion": 6.98,
+   "sueno_eficiencia": 79.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-19",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 84.7,
+   "sueno_duracion": 6.54,
+   "sueno_eficiencia": 74.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-20",
+  "fase": "IN_TEST",
+  "medicacion": "Diphenhydramine 50mg",
+  "valores": {
+   "sueno_latencia": 32,
+   "sueno_duracion": 7.43,
+   "sueno_eficiencia": 83.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-21",
+  "fase": "IN_TEST",
+  "medicacion": "Ambien 5mg",
+  "valores": {
+   "sueno_latencia": 50.7,
+   "sueno_duracion": 7.06,
+   "sueno_eficiencia": 81.1
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-22",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 35.3,
+   "sueno_duracion": 7.28,
+   "sueno_eficiencia": 83.6
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-23",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 37.3,
+   "sueno_duracion": 7.32,
+   "sueno_eficiencia": 83.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-24",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 31.3,
+   "sueno_duracion": 7.44,
+   "sueno_eficiencia": 84.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-25",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 45.3,
+   "sueno_duracion": 7.21,
+   "sueno_eficiencia": 82.5
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-26",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 31.3,
+   "sueno_duracion": 7.41,
+   "sueno_eficiencia": 84.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-27",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 51.3,
+   "sueno_duracion": 7.04,
+   "sueno_eficiencia": 82.5
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-28",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 40.7,
+   "sueno_duracion": 7.21,
+   "sueno_eficiencia": 83.0
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-29",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 27.3,
+   "sueno_duracion": 7.44,
+   "sueno_eficiencia": 85.7
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-30",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 14,
+   "sueno_duracion": 7.62,
+   "sueno_eficiencia": 84.4
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-10-31",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 111.3,
+   "sueno_duracion": 6.03,
+   "sueno_eficiencia": 67.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-01",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 110.7,
+   "sueno_duracion": 6.01,
+   "sueno_eficiencia": 66.9
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-02",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 125.3,
+   "sueno_duracion": 5.88,
+   "sueno_eficiencia": 68.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-03",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 118,
+   "sueno_duracion": 6.0,
+   "sueno_eficiencia": 70.2
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-04",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 110,
+   "sueno_duracion": 6.11,
+   "sueno_eficiencia": 68.5
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-05",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 57.3,
+   "sueno_duracion": 6.88,
+   "sueno_eficiencia": 79.4
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-06",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 70.7,
+   "sueno_duracion": 6.76,
+   "sueno_eficiencia": 77.1
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-07",
+  "fase": "IN_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 26.7,
+   "sueno_duracion": 7.52,
+   "sueno_eficiencia": 86.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-08",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 16.7,
+   "sueno_duracion": 7.69,
+   "sueno_eficiencia": 85.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-09",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 11.0,
+   "sueno_duracion": 7.78,
+   "sueno_eficiencia": 85.8
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-10",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 29,
+   "sueno_duracion": 7.4,
+   "sueno_eficiencia": 85.0
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-11",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 42,
+   "sueno_duracion": 7.27,
+   "sueno_eficiencia": 81.7
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-12",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 16,
+   "sueno_duracion": 7.7,
+   "sueno_eficiencia": 88.6
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-13",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 54,
+   "sueno_duracion": 7.07,
+   "sueno_eficiencia": 83.3
+  }
+ },
+ {
+  "usuario": "astro_1",
+  "timestamp": "2004-11-14",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 29,
+   "sueno_duracion": 7.35,
+   "sueno_eficiencia": 88.1
+  }
+ },
+ {
+  "usuario": "astro_2",
+  "timestamp": "2004-11-09",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 38,
+   "sueno_duracion": 7.33,
+   "sueno_eficiencia": 83.8
+  }
+ },
+ {
+  "usuario": "astro_2",
+  "timestamp": "2004-11-10",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 30,
+   "sueno_duracion": 7.47,
+   "sueno_eficiencia": 77.5
+  }
+ },
+ {
+  "usuario": "astro_2",
+  "timestamp": "2004-11-11",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 28,
+   "sueno_duracion": 7.43,
+   "sueno_eficiencia": 82.5
+  }
+ },
+ {
+  "usuario": "astro_2",
+  "timestamp": "2004-11-12",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 40,
+   "sueno_duracion": 7.3,
+   "sueno_eficiencia": 79.2
+  }
+ },
+ {
+  "usuario": "astro_2",
+  "timestamp": "2004-11-13",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 108,
+   "sueno_duracion": 6.17,
+   "sueno_eficiencia": 70.8
+  }
+ },
+ {
+  "usuario": "astro_2",
+  "timestamp": "2004-11-14",
+  "fase": "POST_TEST",
+  "medicacion": null,
+  "valores": {
+   "sueno_latencia": 28,
+   "sueno_duracion": 7.5,
+   "sueno_eficiencia": 73.8
+  }
+ }
+]

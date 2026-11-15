@@ -15,6 +15,8 @@ Todas las respuestas del backend de salud llevan un `codigo` numérico para que 
 | `medidas.<var>.codigo_tendencia`, `medidas.<var>.deriva.codigo` | `/resumen` | 4xxx |
 | `patrones[].codigo` | `/resumen` | 5xxx |
 | `codigo`, `tipo` | `GET /tripulantes/{id}/notificaciones` y evento SSE `notificacion` | 6xxx |
+| `cognitivo.codigo_nivel` | `/resumen`, `/aptitud`, `/cognitivo`, `/cognitivo/resumen` | 8xxx |
+| `cognitivo.deriva.codigo` | `/cognitivo/resumen` | 4xxx |
 | `codigo` | `POST /preguntar` | 7xxx |
 | `detail.codigo` | cualquier error HTTP (404/503) | 9xxx |
 
@@ -76,6 +78,11 @@ Todas las respuestas del backend de salud llevan un `codigo` numérico para que 
 | 5013 | `ANOMALIA_PERSONAL` | Anomalía respecto a su modelo, pero dentro del rango clínico. |
 | 5014 | `DESVIACION_PERSONAL_LEVE` | Desviación leve de su patrón personal. |
 | 5015 | `ANOMALIA_Y_FUERA_DE_RANGO` | Anomalía personal y además fuera de rango clínico. |
+| 5016 | `SUENO_DEFICIENTE` | Sueño por debajo de lo esperado (observación; no decide aptitud por sí solo). |
+| 5017 | `SUENO_DEFICIENTE_SOSTENIDO` | Varias noches seguidas con sueño en alerta clínica. |
+| 5018 | `RENDIMIENTO_COGNITIVO_REDUCIDO` | Nivel cognitivo en VIGILAR o peor (observación). |
+| 5019 | `SUENO_Y_COGNICION` | Sueño deficiente sostenido junto con caída cognitiva. |
+| 5020 | `FISIOLOGIA_Y_COGNICION` | Desviación fisiológica junto con caída cognitiva. |
 
 ### 6xxx · Notificaciones
 
@@ -92,6 +99,15 @@ Todas las respuestas del backend de salud llevan un `codigo` numérico para que 
 |---|---|---|
 | 7001 | `RESPUESTA_OK` | Respuesta del agente generada. |
 
+### 8xxx · Nivel cognitivo (`cognitivo.codigo_nivel`)
+
+| Código | Nombre | Significado |
+|---|---|---|
+| 8000 | `COG_SIN_LINEA_BASE` | Aún no hay sesiones de línea base suficientes. |
+| 8001 | `COG_NORMAL` | Rendimiento dentro de lo habitual para esta persona. |
+| 8002 | `COG_VIGILAR` | Rendimiento algo peor que su línea base. |
+| 8010 | `COG_ALERTA` | Rendimiento claramente peor que su línea base. |
+
 ### 9xxx · Errores
 
 | Código | Nombre | Significado |
@@ -99,6 +115,7 @@ Todas las respuestas del backend de salud llevan un `codigo` numérico para que 
 | 9001 | `TRIPULANTE_NO_ENCONTRADO` | El tripulante no existe. |
 | 9002 | `VARIABLE_DESCONOCIDA` | La medida solicitada no existe. |
 | 9003 | `LLM_NO_DISPONIBLE` | LM Studio no responde. |
+| 9004 | `SESION_COGNITIVA_INVALIDA` | La sesión enviada no cumple el esquema (HTTP 422). |
 
 ## Ejemplos
 
@@ -124,4 +141,5 @@ Error: `{"detail": {"codigo": 9001, "nombre": "TRIPULANTE_NO_ENCONTRADO", "mensa
 - **Apto con seguimiento (1002)**: solo observaciones (5006, 5007-5014, deriva con valor aún normal).
 - **Saludable (1001)**: sin motivos ni observaciones.
 - **Deriva lenta (4110)**: el promedio de las últimas 6 lecturas se aleja de la línea base o de hace ~6 h más que `max(umbral por variable, 2σ de su línea base)` (pulso 8 bpm, SpO2 2 %, sistólica 10 y diastólica 6 mmHg).
+- **Cognitivo:** nunca produce 1010 ni 1011; 5018-5020 llevan a 1002 (apto con seguimiento).
 - **Línea base no confiable (5006)**: la línea base de esa persona ya estaba en alerta clínica; manda el criterio clínico.

@@ -232,6 +232,143 @@
         }
       }
     },
+    "/tripulantes/{usuario}/cognitivo": {
+      "post": {
+        "tags": [
+          "Salud en tiempo real",
+          "Cognitivo"
+        ],
+        "summary": "Guardar Sesion Cognitiva",
+        "description": "Guarda una sesión de pruebas cognitivas (PVT, DSST, Matrix) y devuelve la sesión con su `id` y el estado\ncognitivo resultante. Sesión que no cumple el esquema: 422 con código 9004.",
+        "operationId": "guardar_sesion_cognitiva_tripulantes__usuario__cognitivo_post",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Sesión de pruebas (ver `SesionCognitiva` en el esquema)",
+                "title": "Sesion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Salud en tiempo real",
+          "Cognitivo"
+        ],
+        "summary": "Historial Cognitivo",
+        "description": "Historial de sesiones cognitivas, cada una con su evaluación frente a la línea base (las de familiarización\ny las de línea base no se evalúan).",
+        "operationId": "historial_cognitivo_tripulantes__usuario__cognitivo_get",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tripulantes/{usuario}/cognitivo/resumen": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real",
+          "Cognitivo"
+        ],
+        "summary": "Resumen Cognitivo",
+        "description": "Línea base, estado, deriva y observaciones cognitivas. Orientativo, no es diagnóstico médico.",
+        "operationId": "resumen_cognitivo_tripulantes__usuario__cognitivo_resumen_get",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tripulantes/{usuario}/notificaciones": {
       "get": {
         "tags": [
@@ -298,7 +435,7 @@
           "Salud en tiempo real"
         ],
         "summary": "Salud Stream",
-        "description": "Datos en vivo (Server-Sent Events). Eventos:\n\n- `snapshot`: estado inicial (mismo contenido que `GET /tripulantes/{id}/salud`).\n- `lectura`: una lectura nueva `{timestamp, valores}`, cada vez que \"ocurre\" una.\n- `notificacion`: alerta nueva `{id, usuario, timestamp, severidad, variable, mensaje}`.\n- `fin`: ya no hay más datos (terminó la reproducción).\n- `: ping`: comentario de keep-alive, el front puede ignorarlo.",
+        "description": "Datos en vivo (Server-Sent Events). Eventos:\n\n- `snapshot`: estado inicial (mismo contenido que `GET /tripulantes/{id}/salud`).\n- `lectura`: una lectura nueva `{timestamp, valores}`, cada vez que \"ocurre\" una.\n- `sueno`: una noche nueva `{timestamp, valores, fase, medicacion}` (solo tripulantes con datos de sueño).\n- `notificacion`: alerta nueva `{id, usuario, timestamp, severidad, variable, mensaje}`.\n- `fin`: ya no hay más datos (terminaron las lecturas y las noches).\n- `: ping`: comentario de keep-alive, el front puede ignorarlo.",
         "operationId": "salud_stream_tripulantes__usuario__salud_stream_get",
         "parameters": [
           {
@@ -521,6 +658,19 @@
             },
             "type": "object",
             "title": "Derivadas"
+          },
+          "cognitivo": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cognitivo",
+            "description": "Bloque cognitivo (solo si el tripulante tiene sesiones). Ver docs/COGNITIVO.md"
           }
         },
         "type": "object",
@@ -544,8 +694,16 @@
             "title": "Usuario"
           },
           "timestamp_actual": {
-            "type": "string",
-            "title": "Timestamp Actual"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp Actual",
+            "description": "Instante de la última lectura de signos vitales (o noche, si solo hay sueño)"
           },
           "actual": {
             "additionalProperties": {
@@ -563,6 +721,14 @@
             "title": "Historial",
             "description": "Lecturas hasta ahora, de la más antigua a la más reciente"
           },
+          "sueno": {
+            "items": {
+              "$ref": "#/components/schemas/Noche"
+            },
+            "type": "array",
+            "title": "Sueno",
+            "description": "Noches de sueño transcurridas (vacío si el tripulante no tiene datos de sueño)"
+          },
           "simulado": {
             "type": "boolean",
             "title": "Simulado",
@@ -572,7 +738,6 @@
         "type": "object",
         "required": [
           "usuario",
-          "timestamp_actual",
           "actual",
           "historial",
           "simulado"
@@ -701,6 +866,59 @@
           "timestamp"
         ],
         "title": "Medicion"
+      },
+      "Noche": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "Fecha de la noche (YYYY-MM-DD)"
+          },
+          "valores": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Valores",
+            "examples": [
+              {
+                "sueno_duracion": 7.73,
+                "sueno_eficiencia": 92.1,
+                "sueno_latencia": 14
+              }
+            ]
+          },
+          "fase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fase",
+            "description": "Fase del estudio (PRE_TEST, IN_TEST, POST_TEST)"
+          },
+          "medicacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medicacion",
+            "description": "Medicación para dormir registrada esa noche"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "valores"
+        ],
+        "title": "Noche"
       },
       "Notificacion": {
         "properties": {
@@ -882,6 +1100,12 @@
           "lecturas_disponibles": {
             "type": "integer",
             "title": "Lecturas Disponibles"
+          },
+          "noches_disponibles": {
+            "type": "integer",
+            "title": "Noches Disponibles",
+            "description": "Noches de sueño disponibles (0 = sin datos de sueño)",
+            "default": 0
           }
         },
         "type": "object",

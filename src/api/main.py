@@ -17,6 +17,7 @@ from openai import APIConnectionError
 from pydantic import BaseModel, Field
 
 from src import config
+from src.api.salud import datos_cognitivo as router_datos_cognitivo
 from src.api.salud import monitor as router_salud_monitor
 from src.api.salud import router as router_salud
 from src.api.sse import sse
@@ -60,10 +61,13 @@ def contexto_fisio(body):
     """Texto de contexto fisiológico si la pregunta indica un tripulante; 404 si no existe."""
     if not body.usuario:
         return ""
-    if body.usuario not in router_salud_monitor.series:
+    if not router_salud_monitor.existe(body.usuario):
         raise HTTPException(404, codigos.error(9001, f"Tripulante '{body.usuario}' no encontrado"))
     series = router_salud_monitor.series_por_variable(body.usuario)
-    return estado["agente"].estado_fisiologico(body.usuario, body.variables, series)
+    k = router_salud_monitor.indice_sueno(body.usuario)
+    meds = [(n["timestamp"], n["medicacion"]) for n in router_salud_monitor.sueno.get(body.usuario, [])[: k + 1] if n.get("medicacion")]
+    return estado["agente"].estado_fisiologico(body.usuario, body.variables, series, meds,
+                                                router_datos_cognitivo.sesiones(body.usuario))
 
 
 class Fuente(BaseModel):

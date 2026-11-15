@@ -3,14 +3,16 @@
 Los límites clínicos tienen la última palabra: el modelo personal ("¿es raro para esta persona?")
 nunca puede anular un valor clínicamente peligroso. Todos los hallazgos llevan código (docs/CODIGOS.md).
 """
-from src.salud import codigos, inferencia
+from src import config
+from src.salud import codigos, cognitivo, inferencia
 from src.salud import referencias as ref
 
 MODELO_DESVIADO = ("ADVERTENCIA", "ANOMALIA")
 
 
-def evaluar_aptitud(usuario, series_por_var):
-    """series_por_var = {variable: [(ts, valor), ...]} hasta el instante actual."""
+def evaluar_aptitud(usuario, series_por_var, sesiones_cog=None):
+    """series_por_var = {variable: [(ts, valor), ...]} hasta el instante actual.
+    sesiones_cog = sesiones cognitivas del usuario (opcional). Sin ellas el resultado es el de siempre."""
     motivos, obs = [], []
     nivel, apto = ref.NORMAL, True
     resumen = inferencia.resumen_global(usuario, series_por_var)
@@ -21,6 +23,15 @@ def evaluar_aptitud(usuario, series_por_var):
         serie = series_por_var[var]
         nom = f"{var} {m['actual']} {m['unidad']}"
         clin, etiq = m["nivel_clinico"], m["interpretacion_clinica"]
+        if var in config.VARIABLES_SUENO:
+            # El sueño es una observación: informa y sube el nivel a VIGILAR, pero no declara no apto por sí solo.
+            if clin != ref.NORMAL:
+                nivel = ref.mas_grave(nivel, ref.VIGILAR)
+                obs.append(codigos.evento(5016, f"{nom}: {etiq}", var))
+            if m["deriva"]["detectada"]:
+                nivel = ref.mas_grave(nivel, ref.VIGILAR)
+                obs.append(codigos.evento(5005, f"{var}: deriva lenta {m['deriva']['sentido']} de {m['deriva']['cambio']} {m['unidad']}", var))
+            continue
         nivel = ref.mas_grave(nivel, clin)
         modelo_desv = m["estado_modelo"] in MODELO_DESVIADO
 
@@ -69,12 +80,23 @@ def evaluar_aptitud(usuario, series_por_var):
             nivel = ref.mas_grave(nivel, ref.VIGILAR)
 
     for p in resumen["patrones"]:
-        if p["codigo"] == 5004:          # compromiso respiratorio: motivo de no apto
+        if p["codigo"] == 5017:
+            nivel = ref.mas_grave(nivel, ref.VIGILAR)
+            obs.append(p)
+        elif p["codigo"] == 5004:          # compromiso respiratorio: motivo de no apto
             apto = False
             nivel = ref.mas_grave(nivel, ref.ALERTA)
             motivos.append(p)
         else:
             obs.append(p)
+
+    cog = None
+    if sesiones_cog:
+        # Lo cognitivo solo observa: añade observaciones y sube el nivel hasta VIGILAR; nunca produce 1010 ni 1011.
+        cog = cognitivo.bloque(sesiones_cog, resumen)
+        for o in cog["observaciones"]:
+            nivel = ref.mas_grave(nivel, ref.VIGILAR)
+            obs.append(o)
 
     if not apto:
         nivel = ref.mas_grave(nivel, ref.ALERTA)
@@ -84,5 +106,10 @@ def evaluar_aptitud(usuario, series_por_var):
         codigo, rec = 1002, ["Apto con seguimiento: repetir medición en los próximos minutos."]
     else:
         codigo, rec = 1001, ["Sin hallazgos: continuar con la rutina."]
-    return {"usuario": usuario, "apto": apto, "nivel": nivel, "codigo": codigo, "estado": codigos.nombre(codigo),
-            "motivos": motivos, "observaciones": obs, "recomendaciones": rec, "derivadas": resumen["derivadas"]}
+    if cog and cog["recomendacion"]:
+        rec.append(cog["recomendacion"])
+    out = {"usuario": usuario, "apto": apto, "nivel": nivel, "codigo": codigo, "estado": codigos.nombre(codigo),
+           "motivos": motivos, "observaciones": obs, "recomendaciones": rec, "derivadas": resumen["derivadas"]}
+    if cog:
+        out["cognitivo"] = cog
+    return out

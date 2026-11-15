@@ -54,7 +54,9 @@ def pendiente(valores):
 
 # Deriva lenta: cambio acumulado mínimo (unidades) para avisar aunque cada lectura parezca normal
 UMBRAL_DERIVA = {"pulso": U["DERIVA_UMBRAL_PULSO"], "spo2": U["DERIVA_UMBRAL_SPO2"],
-                 "presion_sistolica": U["DERIVA_UMBRAL_SISTOLICA"], "presion_diastolica": U["DERIVA_UMBRAL_DIASTOLICA"]}
+                 "presion_sistolica": U["DERIVA_UMBRAL_SISTOLICA"], "presion_diastolica": U["DERIVA_UMBRAL_DIASTOLICA"],
+                 "sueno_latencia": U["DERIVA_UMBRAL_SUENO_LATENCIA"], "sueno_duracion": U["DERIVA_UMBRAL_SUENO_DURACION"],
+                 "sueno_eficiencia": U["DERIVA_UMBRAL_SUENO_EFICIENCIA"]}
 VENTANA_DERIVA = U["DERIVA_VENTANA_LECTURAS"]     # lecturas (~6 h a 1 lectura/10 min) para comparar contra el pasado reciente
 N_PROMEDIO = U["DERIVA_PROMEDIO_LECTURAS"]          # lecturas que se promedian para suavizar el ruido
 
@@ -191,5 +193,15 @@ def resumen_global(usuario, series_por_var, tope=None, variables=None):
     medidas = {v: resumen_medida(usuario, v, series_por_var[v], tope) for v in vars_}
     actual = {v: s[-1][1] for v, s in series_por_var.items() if s}
     estados = {v: m["estado_modelo"] for v, m in medidas.items() if m}
-    return {"usuario": usuario, "medidas": medidas, "derivadas": derivadas(actual),
-            "patrones": patrones(actual, estados)}
+    pats = patrones({v: x for v, x in actual.items() if v not in config.VARIABLES_SUENO}, estados)
+    pats += patron_sueno(series_por_var)
+    return {"usuario": usuario, "medidas": medidas, "derivadas": derivadas(actual), "patrones": pats}
+
+
+def patron_sueno(series_por_var):
+    """Sueño deficiente sostenido: las últimas PERSISTENCIA noches en alerta clínica (duración o eficiencia)."""
+    malas = [v for v in ("sueno_duracion", "sueno_eficiencia")
+             if v in series_por_var and persistencia_clinica(v, series_por_var[v])]
+    if not malas:
+        return []
+    return [codigos.evento(5017, f"Varias noches seguidas con sueño deficiente ({', '.join(malas)}).", malas[0])]

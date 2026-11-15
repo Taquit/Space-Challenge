@@ -32,18 +32,22 @@ SYSTEM = (
 SYSTEM_FISIO = (
     " Si se incluyen 'Datos del tripulante', úsalos para resumir las medidas y la aptitud: cita solo las "
     "cifras dadas, no inventes valores, indica si es APTO o NO APTO y aclara que es orientativo. "
+    "Si hay resultados cognitivos, cita solo sus cifras, di que son orientativos y que una sesión atípica "
+    "puede deberse a fatiga, distracción o poco esfuerzo; nunca los uses para declarar no apto. "
     "Para esos datos no hace falta citar documentos."
 )
 
 
-def estado_fisiologico(usuario=None, variables=None, series=None):
+def estado_fisiologico(usuario=None, variables=None, series=None, medicacion=None, sesiones_cog=None):
     """Contexto fisiológico (calculado, no inventado) para el LLM: resumen de las medidas del
-    tripulante frente a SU modelo personal y su decisión de aptitud. `series` = {variable: [(ts, valor)]}."""
-    if not usuario or not series:
+    tripulante frente a SU modelo personal y su decisión de aptitud. `series` = {variable: [(ts, valor)]}.
+    Las variables `sueno_*` son un resumen por noche (sin modelo personal). `medicacion` = [(fecha, texto)] de
+    medicación para dormir ya registrada. `sesiones_cog` = sesiones cognitivas del usuario (opcional)."""
+    if not usuario or not (series or sesiones_cog):
         return ""
     from src.salud import aptitud, inferencia
     res = inferencia.resumen_global(usuario, series, variables=variables)
-    apt = aptitud.evaluar_aptitud(usuario, series)
+    apt = aptitud.evaluar_aptitud(usuario, series, sesiones_cog)
     lineas = [f"Tripulante {usuario} (cada tripulante tiene su propio modelo entrenado con sus datos):"]
     for v, m in res["medidas"].items():
         esp = m["esperado_personal"]
@@ -52,8 +56,13 @@ def estado_fisiologico(usuario=None, variables=None, series=None):
                       f"máx {m['maximo']}, tendencia {m['tendencia']}; estado del modelo personal {m['estado_modelo']}; "
                       f"clínico {m['nivel_clinico']} ({m['interpretacion_clinica']})"
                       + (f"; deriva lenta {m['deriva']['sentido']} de {m['deriva']['cambio']}" if m['deriva']['detectada'] else "") + ".")
+    if medicacion:
+        lineas.append("- Medicación para dormir registrada: " + "; ".join(f"{f}: {m}" for f, m in medicacion[-5:]) + ".")
     for p in res["patrones"]:
         lineas.append(f"- Patrón: {p['mensaje']}")
+    if apt.get("cognitivo"):
+        from src.salud import cognitivo
+        lineas += cognitivo.texto_chat(apt["cognitivo"])
     lineas.append(f"Aptitud: {'APTO' if apt['apto'] else 'NO APTO'} (nivel {apt['nivel']}). "
                   + " ".join([e["mensaje"] for e in apt["motivos"] + apt["observaciones"]] + apt["recomendaciones"]))
     return "\n".join(lineas)
