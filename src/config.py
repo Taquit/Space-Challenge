@@ -64,7 +64,10 @@ MIN_ENTRENAMIENTO = 60   # mediciones mínimas del usuario para entrenar su prop
 API_HOST = "127.0.0.1"   # "0.0.0.0" para exponerla en la red local
 API_PORT = 8000
 # Orígenes del front permitidos por CORS (agrega el de tu front si es otro)
-CORS_ORIGENES = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
+CORS_ORIGENES = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5173",
+                 "http://localhost:8000", "http://127.0.0.1:8000"]
+# Front estático (index.html) que la API sirve en "/". Configurable con ORBITAL_FRONT_DIR.
+FRONT_DIR = _ruta("ORBITAL_FRONT_DIR", RAIZ / "front" / "Space-Challenge-Front-main")
 REENTRENAR_CADA = 30   # mediciones nuevas (filas por usuario) tras las cuales se reentrena solo
 
 # Datos de salud "en tiempo real" (reproducción simulada de fisiologico.json)

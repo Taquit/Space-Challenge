@@ -13,6 +13,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from openai import APIConnectionError
 from pydantic import BaseModel, Field
 
@@ -140,6 +141,12 @@ def preguntar_stream(body: Pregunta):
 
     return StreamingResponse(eventos(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# Front estático de ORBITAL (carpeta con index.html), servido en "/" desde el mismo origen: sin CORS.
+# Se monta DESPUÉS de todas las rutas de la API para no taparlas (/docs, /salud, /tripulantes, /preguntar siguen igual).
+if config.FRONT_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(config.FRONT_DIR), html=True), name="front")
 
 
 if __name__ == "__main__":

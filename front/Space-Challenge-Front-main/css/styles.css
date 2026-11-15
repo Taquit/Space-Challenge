@@ -1,0 +1,11 @@
+/* ORBITAL · base y animaciones */
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:'Overpass',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:var(--orbi);text-decoration:none}a:hover{color:var(--orbi-deep);text-decoration:underline}
+button{font-family:inherit;color:inherit}
+input::placeholder{color:var(--ink-soft)}
+@keyframes orbPulse1{0%,100%{box-shadow:0 0 0 3px rgba(224,166,59,.22),0 0 14px rgba(224,166,59,.4)}50%{box-shadow:0 0 0 9px rgba(224,166,59,0),0 0 28px rgba(224,166,59,.6)}}
+@keyframes orbPulse2{0%,100%{box-shadow:0 0 0 3px rgba(229,83,61,.28),0 0 18px rgba(229,83,61,.55)}50%{box-shadow:0 0 0 11px rgba(229,83,61,0),0 0 38px rgba(229,83,61,.85)}}
+@keyframes orbPulse3{0%,100%{box-shadow:0 0 0 3px rgba(217,43,63,.3),0 0 18px rgba(217,43,63,.6)}50%{box-shadow:0 0 0 12px rgba(217,43,63,0),0 0 40px rgba(217,43,63,.9)}}
+@keyframes orbBeat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.2)}56%{transform:scale(1)}}
+@keyframes orbBlink{0%,100%{opacity:1}50%{opacity:.25}}

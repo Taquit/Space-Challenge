@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORBITAL</title>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/styles.css">
+<script>window.__resources = {};</script>
+<script src="js/vendor/react.production.min.js"></script>
+<script src="js/vendor/react-dom.production.min.js"></script>
+<script src="js/support.js"></script>
+<script>
+  // Dónde vive el backend de Space-Challenge. Cámbialo con ?api=<url>.
+  // Servido por el propio backend (python -m src.api.main → http://localhost:8000/) usa el mismo origen (sin CORS);
+  // servido aparte (localhost:5173 / :3000) apunta a http://localhost:8000.
+  window.ORBITAL_API_BASE = (new URLSearchParams(location.search).get('api')) ||
+    (/^https?:$/.test(location.protocol) && !['5173', '3000'].includes(location.port) ? location.origin : 'http://localhost:8000');
+  // ?demo=1 fuerza el modo demostración (datos sintéticos), sin intentar el backend.
+  window.ORBITAL_FORCE_DEMO = new URLSearchParams(location.search).get('demo') === '1';
+</script>
+<script src="js/api.js"></script>
+<script src="js/live.js"></script>
+<script src="js/voz.js"></script>
+</head>
+<body>
+<x-dc>
+
+<div style="position:relative;width:100vw;height:100vh;min-height:520px;min-width:900px;overflow:hidden;background:var(--bg);color:var(--ink);transition:background .5s var(--ease)">
+
+  <div style="position:absolute;top:22px;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:5">
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:500;letter-spacing:.42em;color:var(--ink-soft);padding-left:.42em">ORBITAL</div>
+  </div>
+
+  <div style="position:absolute;top:16px;right:24px;display:flex;align-items:center;gap:10px;z-index:6">
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;background:var(--surface-translucent);backdrop-filter:blur(20px);font-size:12px;color:var(--ink-soft)">
+      <span style="width:7px;height:7px;border-radius:50%;background:{{ sysDot }}"></span>
+      <span>{{ sysText }}</span>
+      <sc-if value="{{ showRetry }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ retry }}" style="border:0;background:none;padding:0 0 0 4px;font-size:12px;font-weight:600;color:var(--orbi);cursor:pointer">{{ retryLabel }}</button>
+      </sc-if>
+    </div>
+    <button onClick="{{ openHelp }}" aria-label="Ayuda" title="Cómo usar ORBITAL" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--hairline);background:var(--surface-translucent);backdrop-filter:blur(20px);font-family:'Space Grotesk';font-size:14px;color:var(--ink-soft);cursor:pointer">?</button>
+  </div>
+
+  <div onClick="{{ onOrbiClick }}" role="button" aria-label="Abrir tablero de monitoreo" style="position:absolute;left:50%;top:calc(50% - 110px);width:min(calc(100vh - 440px),420px);height:min(calc(100vh - 440px),420px);min-width:150px;min-height:150px;transform:{{ orbiTransform }};filter:{{ orbiFilter }};opacity:{{ orbiOpacity }};transition:transform .5s var(--ease),filter .5s var(--ease),opacity .5s var(--ease);cursor:pointer;z-index:2">
+    {{ orbiEl }}
+  </div>
+
+  <div style="position:absolute;left:50%;bottom:216px;transform:translateX(-50%);width:min(560px,70vw);display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;opacity:{{ homeOpacity }};pointer-events:{{ homePE }};transition:opacity .4s var(--ease);z-index:3">
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;letter-spacing:-.02em;white-space:nowrap;line-height:1.3">{{ greeting }}</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button onClick="{{ onStatusClick }}" style="display:flex;align-items:center;gap:9px;border:0;padding:8px 14px;border-radius:999px;background:var(--surface-translucent);backdrop-filter:blur(20px);font-size:14px;color:var(--ink);cursor:pointer">
+        <span style="width:8px;height:8px;border-radius:50%;background:{{ homeDot }};box-shadow:0 0 0 4px {{ homeDotRing }}"></span>
+        <span>{{ homeLine }}</span>
+      </button>
+      <button onClick="{{ toggleSpeak }}" aria-label="{{ speakLabel }}" title="{{ speakLabel }}" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--hairline);background:var(--surface-translucent);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="{{ speakIcon }}"></path></svg>
+      </button>
+    </div>
+    <sc-if value="{{ speaking }}" hint-placeholder-val="{{ false }}">
+      <div style="font-size:14px;line-height:1.5;color:var(--ink-soft);max-width:520px;text-wrap:pretty">{{ caption }}</div>
+    </sc-if>
+  </div>
+
+  <div style="position:absolute;left:28px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:18px;z-index:20">
+    <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-soft);margin-bottom:2px">TRIPULACIÓN</div>
+    <sc-for list="{{ crewList }}" as="cm" hint-placeholder-count="4">
+      <button onClick="{{ cm.onClick }}" aria-pressed="{{ cm.selected }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:none;padding:0;cursor:pointer">
+        <span style="position:relative;width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ cm.bg }};color:{{ cm.fg }};box-shadow:{{ cm.shadow }};transition:all .35s var(--ease)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c.8-3.6 3.9-6 7.5-6s6.7 2.4 7.5 6"></path></svg>
+          <span style="position:absolute;top:2px;right:2px;width:11px;height:11px;border-radius:50%;background:{{ cm.dot }};border:2px solid var(--bg)"></span>
+        </span>
+        <span style="font-size:12px;font-weight:{{ cm.weight }};color:{{ cm.label }}">{{ cm.name }}</span>
+      </button>
+    </sc-for>
+  </div>
+
+  <div onPointerDown="{{ dialDown }}" onPointerMove="{{ dialMove }}" onPointerUp="{{ dialUp }}" onPointerCancel="{{ dialUp }}" onWheel="{{ dialWheel }}" style="position:absolute;left:50%;bottom:0;width:520px;height:200px;margin-left:-260px;touch-action:none;user-select:none;opacity:{{ dialOpacity }};pointer-events:{{ dialPE }};transform:translateY({{ dialY }});transition:opacity .4s var(--ease),transform .5s var(--ease);z-index:4">
+    <svg width="520" height="200" viewBox="0 0 520 200" style="position:absolute;inset:0;pointer-events:none">
+      <defs><linearGradient id="arcfade" x1="0" x2="1"><stop offset="0" stop-color="var(--ink)" stop-opacity="0"></stop><stop offset=".5" stop-color="var(--ink)" stop-opacity=".22"></stop><stop offset="1" stop-color="var(--ink)" stop-opacity="0"></stop></linearGradient></defs>
+      <path d="M4 194 A290 290 0 0 1 516 194" fill="none" stroke="url(#arcfade)" stroke-width="1.2"></path>
+    </svg>
+    <div style="position:absolute;left:0;right:0;top:0;text-align:center;font-size:11px;letter-spacing:.2em;color:var(--orbi);font-weight:600">{{ dialLabel }}</div>
+    <sc-for list="{{ dialItems }}" as="di" hint-placeholder-count="4">
+      <button onClick="{{ di.onClick }}" aria-label="{{ di.label }}" style="position:absolute;left:0;top:0;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:{{ di.border }};background:{{ di.bg }};color:{{ di.fg }};box-shadow:{{ di.shadow }};transform:translate({{ di.x }}px,{{ di.y }}px) scale({{ di.s }});opacity:{{ di.o }};transition:{{ di.trans }};animation:{{ di.anim }};cursor:pointer;padding:0">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="animation:{{ di.iconAnim }}"><path d="{{ di.icon }}"></path></svg>
+        <span style="position:absolute;top:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:{{ di.dot }};border:2px solid var(--bg);opacity:{{ di.dotO }};animation:{{ di.dotAnim }}"></span>
+      </button>
+    </sc-for>
+    <button onClick="{{ openChat }}" aria-label="Hablar con Orbi" style="position:absolute;left:230px;top:96px;width:60px;height:60px;border-radius:50%;border:0;background:var(--orbi);color:#fff;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:0 10px 28px var(--orbi-glow);cursor:pointer">
+      <span style="width:5px;height:5px;border-radius:50%;background:#fff"></span><span style="width:5px;height:5px;border-radius:50%;background:#fff"></span><span style="width:5px;height:5px;border-radius:50%;background:#fff"></span>
+      <sc-if value="{{ llmOff }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:var(--state-idle);border:2px solid var(--bg)"></span></sc-if>
+    </button>
+    <div style="position:absolute;left:0;right:0;bottom:12px;text-align:center;font-size:11px;color:var(--ink-soft);opacity:{{ dialHintO }};transition:opacity .4s">Desliza el arco ← → para cambiar de tema</div>
+  </div>
+
+  <div style="position:absolute;inset:0;z-index:10;opacity:{{ chatOpacity }};pointer-events:{{ chatPE }};transform:translateY({{ chatY }});transition:opacity .45s var(--ease),transform .5s var(--ease)">
+    <div style="position:absolute;top:64px;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 260px));display:flex;justify-content:flex-end">
+      <button onClick="{{ closeAll }}" style="display:flex;align-items:center;gap:6px;border:1px solid var(--hairline);background:var(--surface-translucent);backdrop-filter:blur(20px);border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>Cerrar chat
+      </button>
+    </div>
+    <div ref="{{ chatScrollRef }}" style="position:absolute;top:calc(13vh + 70px);bottom:190px;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 260px));overflow-y:auto;display:flex;flex-direction:column;gap:18px;padding:8px 4px 12px;scrollbar-width:thin">
+      <div style="flex:1"></div>
+      <sc-if value="{{ llmOff }}" hint-placeholder-val="{{ false }}">
+        <div style="align-self:center;max-width:520px;text-align:center;display:flex;flex-direction:column;gap:6px;padding:14px 20px;border-radius:20px;background:var(--surface-translucent);backdrop-filter:blur(20px)">
+          <div style="font-weight:600;font-size:14px">Orbi no está disponible por ahora</div>
+          <div style="font-size:13px;color:var(--ink-soft);line-height:1.5;text-wrap:pretty">Tus datos de salud se siguen actualizando. Puedes revisar el tablero mientras Orbi vuelve; te avisaré aquí.</div>
+        </div>
+      </sc-if>
+      <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
+        <div style="display:flex;justify-content:{{ m.justify }}">
+          <div style="max-width:80%;display:flex;flex-direction:column;gap:6px;align-items:{{ m.align }}">
+            <sc-if value="{{ m.isOrbi }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;letter-spacing:.16em;color:var(--orbi);font-weight:600;padding-left:6px">ORBI</div></sc-if>
+            <sc-if value="{{ m.searching }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:20px 20px 20px 6px;background:var(--surface);box-shadow:var(--shadow);font-size:14px;color:var(--ink-soft)">
+                <span style="display:flex;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:var(--orbi);opacity:{{ m.d1 }}"></span><span style="width:6px;height:6px;border-radius:50%;background:var(--orbi);opacity:{{ m.d2 }}"></span><span style="width:6px;height:6px;border-radius:50%;background:var(--orbi);opacity:{{ m.d3 }}"></span></span>
+                <span>{{ m.searchText }}</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:14px 18px;border-radius:{{ m.radius }};background:{{ m.bg }};color:{{ m.fg }};box-shadow:{{ m.shadow }};font-size:15px;line-height:1.55;white-space:pre-wrap;text-wrap:pretty">{{ m.text }}<span style="color:var(--orbi)">{{ m.caret }}</span></div>
+            </sc-if>
+            <sc-if value="{{ m.hasSources }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-wrap:wrap;gap:6px;padding-left:6px;font-size:12px;color:var(--ink-soft)">
+                <span>Fuentes:</span>
+                <sc-for list="{{ m.sources }}" as="src" hint-placeholder-count="2"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--hairline)">{{ src.label }}</span></sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="position:absolute;bottom:28px;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 260px));display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;opacity:{{ chipsO }}">
+        <sc-for list="{{ suggestions }}" as="sg" hint-placeholder-count="3">
+          <button onClick="{{ sg.onClick }}" style="border:1px solid var(--hairline);background:var(--surface-translucent);backdrop-filter:blur(20px);border-radius:999px;padding:7px 14px;font-size:13px;cursor:pointer">{{ sg.text }}</button>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 8px 8px 8px;border-radius:999px;background:var(--surface);box-shadow:var(--shadow)">
+        <button aria-label="Añadir contexto" title="Añadir contexto" style="width:40px;height:40px;flex:none;border-radius:50%;border:0;background:var(--orbi);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
+        <input value="{{ draft }}" onChange="{{ onDraft }}" onKeyDown="{{ onDraftKey }}" disabled="{{ inputDisabled }}" placeholder="{{ inputPlaceholder }}" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:15px;font-family:inherit;color:var(--ink)">
+        <span style="font-size:11px;color:var(--ink-soft);white-space:nowrap;padding:4px 10px;border-radius:999px;background:var(--bg)">{{ chatContext }}</span>
+        <button onClick="{{ sendOrStop }}" aria-label="{{ sendLabel }}" style="height:40px;flex:none;padding:0 16px;border-radius:999px;border:0;background:{{ sendBg }};color:{{ sendFg }};font-size:13px;font-weight:600;cursor:pointer">{{ sendLabel }}</button>
+      </div>
+      <div style="text-align:center;font-size:12px;color:var(--ink-soft)">Información de referencia, no sustituye valoración médica.</div>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:112px;right:24px;top:58px;bottom:18px;z-index:12;border-radius:28px;background:var(--surface-translucent);backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px);box-shadow:0 30px 80px rgba(15,39,68,.14);transform:translateY({{ sheetY }});transition:{{ sheetTrans }};display:flex;flex-direction:column;overflow:hidden">
+    <div onPointerDown="{{ handleDown }}" onPointerMove="{{ handleMove }}" onPointerUp="{{ handleUp }}" onPointerCancel="{{ handleUp }}" onClick="{{ handleClick }}" role="button" aria-label="Bajar tablero" title="Arrastra hacia abajo o toca para cerrar" style="flex:none;height:26px;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none">
+      <span style="width:46px;height:5px;border-radius:3px;background:var(--ink-soft);opacity:.45"></span>
+    </div>
+    <div style="flex:none;display:flex;align-items:center;gap:20px;padding:0 28px 16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:220px">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;letter-spacing:.08em">{{ dashTitle }}</div>
+        <div style="font-size:13px;color:var(--ink-soft)">{{ dashSub }}</div>
+      </div>
+      <div style="flex:1"></div>
+      <div role="tablist" style="display:flex;gap:4px;padding:4px;border-radius:999px;background:var(--bg)">
+        <sc-for list="{{ segItems }}" as="sgi" hint-placeholder-count="4">
+          <button onClick="{{ sgi.onClick }}" role="tab" aria-selected="{{ sgi.active }}" title="{{ sgi.label }}" style="display:flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;border:0;background:{{ sgi.bg }};color:{{ sgi.fg }};box-shadow:{{ sgi.shadow }};font-size:13px;font-weight:600;cursor:pointer;transition:all .3s var(--ease)">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="{{ sgi.icon }}"></path></svg>
+            <span>{{ sgi.short }}</span><span style="width:8px;height:8px;border-radius:50%;background:{{ sgi.dotC }};animation:{{ sgi.dotAnim }}"></span>
+          </button>
+        </sc-for>
+      </div>
+      <button onClick="{{ toggleLegend }}" aria-expanded="{{ legendOpen }}" style="display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--hairline);background:{{ legendBg }};font-size:13px;font-weight:600;cursor:pointer"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M8 1.8L14.8 13.6H1.2Z" fill="#e0a63b" stroke="#e0a63b" stroke-width="1.3" stroke-linejoin="round"></path><path d="M8 6.2v3.6M8 11.7v.3" stroke="#3b2a05" stroke-width="1.7" stroke-linecap="round" fill="none"></path></svg>Señales</button>
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px;border-radius:999px;background:var(--surface)">
+        <span style="width:32px;height:32px;border-radius:50%;background:var(--orbi);color:#fff;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c.8-3.6 3.9-6 7.5-6s6.7 2.4 7.5 6"></path></svg></span>
+        <div style="display:flex;flex-direction:column">
+          <span style="font-size:13px;font-weight:700;letter-spacing:.06em">{{ crewHeader }}</span>
+          <span style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><path d="{{ aptSg.shape }}" fill="{{ aptSg.fill }}" stroke="{{ aptSg.stroke }}" stroke-width="1.3" stroke-linejoin="round"></path><path d="{{ aptSg.mark }}" fill="none" stroke="{{ aptSg.markC }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ aptLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ legendOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;z-index:6;top:84px;right:28px;width:min(400px,calc(100% - 56px));max-height:calc(100% - 110px);overflow-y:auto;background:var(--surface);border-radius:22px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(15,39,68,.22)">
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:11px;letter-spacing:.16em;color:var(--ink-soft)">SEÑALÉTICA DE ORBITAL</span><span style="font-family:'Space Grotesk';font-size:17px;font-weight:700;line-height:1.3">Color y forma dicen lo mismo: se entiende aun sin distinguir colores.</span></div>
+        <sc-for list="{{ legend }}" as="lg" hint-placeholder-count="5">
+          <div style="display:flex;gap:14px;align-items:flex-start;padding-top:12px;border-top:1px solid var(--hairline)">
+            <svg width="30" height="30" viewBox="0 0 16 16" style="flex:none"><path d="{{ lg.sg.shape }}" fill="{{ lg.sg.fill }}" stroke="{{ lg.sg.stroke }}" stroke-width="1" stroke-linejoin="round"></path><path d="{{ lg.sg.mark }}" fill="none" stroke="{{ lg.sg.markC }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:700">{{ lg.name }}<span style="font-weight:500;color:var(--ink-soft)"> · {{ lg.role }}</span></span><span style="font-size:13px;line-height:1.45;color:var(--ink-soft)">{{ lg.text }}</span></div>
+          </div>
+        </sc-for>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding-top:12px;border-top:1px solid var(--hairline)">
+          <span style="flex:none;width:30px;height:30px;box-sizing:border-box;border-radius:50%;border:5px solid var(--orbi)"></span>
+          <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:700">Acción<span style="font-weight:500;color:var(--ink-soft)"> · Obligación</span></span><span style="font-size:13px;line-height:1.45;color:var(--ink-soft)">Lo que Orbi te pide hacer. Siempre en azul, con un anillo.</span></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-soft);line-height:1.5">Basado en el criterio de la NOM-003-SEGOB-2011: información, precaución, prohibición y obligación.</div>
+      </div>
+    </sc-if>
+    <div style="flex:1;min-height:0;overflow-y:auto;padding:0 28px 28px">
+
+      <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;background:color-mix(in oklab, var(--state-idle) 18%, transparent);margin-bottom:16px;font-size:14px">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--state-idle)"></span>
+          <span style="flex:1">No hay conexión con el sistema de datos. Te muestro lo último que recibí (a las {{ clock }}); los valores no se están actualizando.</span>
+          <button onClick="{{ retry }}" style="border:0;background:var(--surface);border-radius:999px;padding:7px 14px;font-weight:600;font-size:13px;cursor:pointer">{{ retryLabel }}</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ connecting }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="font-size:14px;color:var(--ink-soft)">Conectando con ORBITAL… buscando lecturas de {{ crewName }}.</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px">
+            <div style="height:200px;border-radius:22px;background:var(--surface);opacity:.6"></div>
+            <div style="height:200px;border-radius:22px;background:var(--surface);opacity:.45"></div>
+            <div style="height:200px;border-radius:22px;background:var(--surface);opacity:.3"></div>
+          </div>
+          <div style="height:260px;border-radius:22px;background:var(--surface);opacity:.35"></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ noData }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:520px;margin:6vh auto 0;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center">
+          <div style="width:64px;height:64px;border-radius:50%;border:1.5px dashed var(--state-idle);display:flex;align-items:center;justify-content:center;color:var(--state-idle)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c.8-3.6 3.9-6 7.5-6s6.7 2.4 7.5 6"></path></svg></div>
+          <div style="font-family:'Space Grotesk';font-size:24px;font-weight:600;letter-spacing:-.02em">Aún no hay lecturas de {{ crewName }}</div>
+          <div style="font-size:15px;line-height:1.6;color:var(--ink-soft);text-wrap:pretty">Orbi todavía no conoce su línea base: necesita cerca de 24 h de lecturas para saber qué es normal para él. Mientras tanto, nada aquí indica un problema.</div>
+          <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:6px;margin-top:6px">
+            <div style="height:6px;border-radius:3px;background:var(--hairline);overflow:hidden"><div style="width:0%;height:100%;background:var(--state-idle)"></div></div>
+            <div style="font-size:12px;color:var(--ink-soft)">Modelo personal: sin datos · 0 de 144 lecturas</div>
+          </div>
+          <div style="font-size:13px;color:var(--ink-soft)">Revisa que su sensor esté colocado y encendido.</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isVitals }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:16px;opacity:{{ dataO }}">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--surface);font-size:12px">
+              <span style="width:7px;height:7px;border-radius:50%;background:{{ liveDot }}"></span>
+              <span>{{ liveText }}</span>
+              <sc-if value="{{ ended }}" hint-placeholder-val="{{ false }}"><button onClick="{{ restartDemo }}" style="border:0;background:var(--orbi);color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px">Reiniciar demo</button></sc-if>
+            </div>
+            <span style="padding:5px 10px;border-radius:999px;border:1px dashed var(--state-idle);font-size:10.5px;letter-spacing:.12em;color:var(--ink-soft)">DATOS SIMULADOS · REPRODUCCIÓN DE UN DÍA</span>
+          </div>
+          <sc-if value="{{ banner.show }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:16px 20px;border-radius:22px;background:{{ banner.bg }};border:2px solid {{ banner.border }}">
+              <svg width="44" height="44" viewBox="0 0 16 16" style="flex:none"><path d="{{ banner.sg.shape }}" fill="{{ banner.sg.fill }}" stroke="{{ banner.sg.stroke }}" stroke-width="1" stroke-linejoin="round"></path><path d="{{ banner.sg.mark }}" fill="none" stroke="{{ banner.sg.markC }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:3px"><span style="font-family:'Space Grotesk';font-size:18px;font-weight:700;letter-spacing:.02em">{{ banner.title }}</span><span style="font-size:14px;line-height:1.45">{{ banner.text }}</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 16px 10px 10px;border-radius:999px;background:var(--surface);max-width:100%">
+                <span style="flex:none;width:34px;height:34px;box-sizing:border-box;border-radius:50%;border:4px solid var(--orbi)"></span>
+                <span style="display:flex;flex-direction:column"><span style="font-size:10.5px;letter-spacing:.16em;color:var(--orbi);font-weight:700">ACCIÓN</span><span style="font-size:14px;font-weight:600;line-height:1.35">{{ banner.action }}</span></span>
+              </div>
+            </div>
+          </sc-if>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+            <sc-for list="{{ cards }}" as="cd" hint-placeholder-count="3">
+              <button onClick="{{ cd.onClick }}" style="text-align:left;border:0;background:var(--surface);border-radius:22px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;box-shadow:{{ cd.shadow }};cursor:pointer;transition:box-shadow .3s">
+                <div style="display:flex;align-items:center;gap:10px;width:100%">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="{{ cd.icon }}"></path></svg>
+                  <span style="font-size:14px;font-weight:600">{{ cd.label }}</span>
+                  <span style="flex:1"></span>
+                  <span style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:{{ cd.stBg }};font-size:11px;font-weight:700;letter-spacing:.1em"><svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><path d="{{ cd.sg.shape }}" fill="{{ cd.sg.fill }}" stroke="{{ cd.sg.stroke }}" stroke-width="1.3" stroke-linejoin="round"></path><path d="{{ cd.sg.mark }}" fill="none" stroke="{{ cd.sg.markC }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ cd.stLabel }}</span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:8px;width:100%">
+                  <span style="font-family:'Space Grotesk',sans-serif;font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1">{{ cd.value }}</span>
+                  <span style="font-size:13px;font-weight:600;color:var(--ink-soft);letter-spacing:.06em">{{ cd.unit }}</span>
+                  <span style="flex:1"></span>
+                  <span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ cd.trendIcon }}"></path></svg>{{ cd.trend }}</span>
+                </div>
+                <div style="position:relative;height:56px;width:100%">
+                  <sc-if value="{{ cd.isEcg }}" hint-placeholder-val="{{ false }}">{{ cd.ecgEl }}</sc-if>
+                  <sc-if value="{{ cd.isBars }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;inset:0;display:flex;gap:4px">
+                      <sc-for list="{{ cd.bars }}" as="b" hint-placeholder-count="14"><div style="position:relative;flex:1"><div style="position:absolute;left:0;right:0;bottom:{{ b.bot }}%;height:{{ b.h }}%;border-radius:3px;background:{{ b.c }}"></div></div></sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ cd.isSpark }}" hint-placeholder-val="{{ false }}">
+                    <svg width="100%" height="56" viewBox="0 0 200 56" preserveAspectRatio="none" style="display:block"><rect x="0" y="{{ cd.bandY }}" width="200" height="{{ cd.bandH }}" fill="var(--orbi)" opacity=".08"></rect><path d="{{ cd.spark }}" fill="none" stroke="{{ cd.lineColor }}" stroke-width="1.6" vector-effect="non-scaling-stroke"></path></svg>
+                  </sc-if>
+                </div>
+                <div style="font-size:12px;color:var(--ink-soft)">{{ cd.range }}</div>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:16px">
+            <div style="background:var(--surface);border-radius:22px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span style="font-size:14px;font-weight:600">Histórico · {{ histVarLabel }}</span>
+                <span style="flex:1"></span>
+                <div style="display:flex;gap:4px;padding:3px;border-radius:999px;background:var(--bg)">
+                  <sc-for list="{{ histVars }}" as="hv" hint-placeholder-count="4"><button onClick="{{ hv.onClick }}" style="border:0;border-radius:999px;padding:5px 10px;font-size:12px;cursor:pointer;background:{{ hv.bg }};color:{{ hv.fg }};font-weight:600">{{ hv.label }}</button></sc-for>
+                </div>
+                <div style="display:flex;gap:4px;padding:3px;border-radius:999px;background:var(--bg)">
+                  <sc-for list="{{ histModes }}" as="hm" hint-placeholder-count="2"><button onClick="{{ hm.onClick }}" style="border:0;border-radius:999px;padding:5px 10px;font-size:12px;cursor:pointer;background:{{ hm.bg }};color:{{ hm.fg }};font-weight:600">{{ hm.label }}</button></sc-for>
+                </div>
+              </div>
+              <div style="position:relative;height:210px">
+                <svg width="100%" height="200" viewBox="0 0 600 200" preserveAspectRatio="none" style="display:block;overflow:visible">
+                  <rect x="0" y="{{ hist.bandY }}" width="600" height="{{ hist.bandH }}" fill="var(--orbi)" opacity=".08"></rect>
+                  <line x1="0" x2="600" y1="{{ hist.baseY }}" y2="{{ hist.baseY }}" stroke="var(--orbi)" stroke-width="1" stroke-dasharray="5 5" vector-effect="non-scaling-stroke" opacity=".7"></line>
+                  <path d="{{ hist.line }}" fill="none" stroke="var(--ink)" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                </svg>
+                <span style="position:absolute;left:{{ hist.dotX }}%;top:{{ hist.dotY }}%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:{{ hist.dotColor }};box-shadow:0 0 0 5px {{ hist.dotRing }}"></span>
+                <span style="position:absolute;right:0;top:{{ hist.hiY }}%;transform:translateY(-120%);font-size:11px;color:var(--ink-soft)">{{ hist.hi }}</span>
+                <span style="position:absolute;right:0;top:{{ hist.loY }}%;transform:translateY(20%);font-size:11px;color:var(--ink-soft)">{{ hist.lo }}</span>
+                <div style="position:absolute;left:0;right:0;bottom:-6px;display:flex;justify-content:space-between;font-size:11px;color:var(--ink-soft)">
+                  <sc-for list="{{ hist.ticks }}" as="tk" hint-placeholder-count="5"><span>{{ tk }}</span></sc-for>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft)">
+                <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:10px;border-radius:2px;background:var(--orbi);opacity:.18"></span>Tu rango esperado personal</span>
+                <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;border-top:1.5px dashed var(--orbi)"></span>Tu línea base</span>
+                <span style="flex:1"></span>
+                <sc-if value="{{ histIsDemo }}" hint-placeholder-val="{{ false }}"><span style="padding:4px 9px;border-radius:999px;border:1px dashed var(--state-idle);font-size:10.5px;letter-spacing:.12em">DATOS DE DEMOSTRACIÓN · 14 DÍAS SIMULADOS + HOY</span></sc-if>
+              </div>
+            </div>
+            <div style="background:var(--surface);border-radius:22px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)">
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #8fb0ff, var(--orbi) 60%, var(--orbi-deep))"></span><span style="font-size:14px;font-weight:600">Lo que Orbi ve</span></div>
+              <div style="font-family:'Space Grotesk';font-size:20px;font-weight:600;letter-spacing:-.01em;line-height:1.3;text-wrap:pretty">{{ aptHeadline }}</div>
+              <sc-for list="{{ aptMotivos }}" as="mo" hint-placeholder-count="1"><div style="display:flex;gap:8px;font-size:13px;line-height:1.5"><span style="flex:none;width:7px;height:7px;margin-top:6px;border-radius:50%;background:{{ mo.c }}"></span><span>{{ mo.t }}</span></div></sc-for>
+              <div style="height:1px;background:var(--hairline)"></div>
+              <div style="font-size:11px;letter-spacing:.16em;color:var(--ink-soft)">QUÉ PUEDES HACER</div>
+              <sc-for list="{{ aptRecs }}" as="rc" hint-placeholder-count="2"><div style="display:flex;gap:10px;font-size:13px;line-height:1.5"><span style="flex:none;width:22px;height:22px;box-sizing:border-box;border-radius:50%;border:2.5px solid var(--orbi);display:flex;align-items:center;justify-content:center;color:var(--orbi);font-family:'Space Grotesk';font-size:11px;font-weight:700;line-height:1">{{ rc.n }}</span><span>{{ rc.t }}</span></div></sc-for>
+              <div style="height:1px;background:var(--hairline)"></div>
+              <div style="font-size:11px;letter-spacing:.16em;color:var(--ink-soft)">AVISOS DE HOY</div>
+              <sc-for list="{{ notifs }}" as="nf" hint-placeholder-count="1"><div style="display:flex;gap:8px;font-size:13px;line-height:1.45"><span style="flex:none;width:7px;height:7px;margin-top:6px;border-radius:50%;background:{{ nf.c }}"></span><span style="flex:1">{{ nf.t }}</span><span style="font-size:11px;color:var(--ink-soft)">{{ nf.time }}</span></div></sc-for>
+              <sc-if value="{{ noNotifs }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--ink-soft)">Sin avisos hoy. Todo tranquilo.</div></sc-if>
+              <div style="flex:1"></div>
+              <div style="font-size:11px;color:var(--ink-soft);line-height:1.5">Orbi no diagnostica: traduce lo que cambió y te sugiere pasos.</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTemp }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;gap:10px;align-items:center"><span style="padding:5px 10px;border-radius:999px;border:1px dashed var(--state-idle);font-size:10.5px;letter-spacing:.12em;color:var(--ink-soft)">DATOS DE DEMOSTRACIÓN</span><span style="font-size:13px;color:var(--ink-soft)">El sistema todavía no mide temperatura. Así se verá cuando llegue.</span></div>
+          <div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:16px">
+            <div style="background:var(--surface);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)">
+              <div style="display:flex;align-items:center;gap:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="1.5" stroke-linecap="round"><path d="M10 14.5V5a2 2 0 1 1 4 0v9.5a4 4 0 1 1-4 0zM12 9v7.5"></path></svg><span style="font-size:14px;font-weight:600">Temperatura corporal</span><span style="flex:1"></span><span style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:color-mix(in oklab, var(--state-ok) 16%, transparent);font-size:11px;font-weight:700;letter-spacing:.1em"><span style="width:7px;height:7px;border-radius:50%;background:var(--state-ok)"></span>ÓPTIMO</span></div>
+              <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'Space Grotesk';font-size:64px;font-weight:700;letter-spacing:-.04em;line-height:1">{{ tempVal }}</span><span style="font-size:14px;font-weight:600;color:var(--ink-soft)">°C</span></div>
+              <div style="font-size:13px;color:var(--ink-soft);line-height:1.5">Tu rango personal: 36.3–37.1 °C. En microgravedad la temperatura central suele subir un poco; Orbi lo compara contigo, no con la Tierra.</div>
+            </div>
+            <div style="background:var(--surface);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)">
+              <span style="font-size:14px;font-weight:600">Últimos 15 días</span>
+              <svg width="100%" height="180" viewBox="0 0 600 180" preserveAspectRatio="none" style="display:block"><rect x="0" y="40" width="600" height="100" fill="var(--orbi)" opacity=".08"></rect><line x1="0" x2="600" y1="90" y2="90" stroke="var(--orbi)" stroke-dasharray="5 5" vector-effect="non-scaling-stroke" opacity=".7"></line><path d="{{ tempPath }}" fill="none" stroke="var(--ink)" stroke-width="1.8" vector-effect="non-scaling-stroke"></path></svg>
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-soft)"><span>−14 d</span><span>−7 d</span><span>hoy</span></div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSleep }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ sleep.none }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width:520px;margin:6vh auto 0;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center">
+            <div style="width:64px;height:64px;border-radius:50%;border:1.5px dashed var(--state-idle);display:flex;align-items:center;justify-content:center;color:var(--state-idle)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="{{ moonIcon }}"></path></svg></div>
+            <div style="font-family:'Space Grotesk';font-size:24px;font-weight:600;letter-spacing:-.02em">Sin registro de sueño de {{ crewName }}</div>
+            <div style="font-size:15px;line-height:1.6;color:var(--ink-soft);text-wrap:pretty">El sistema no entrega datos de sueño de este tripulante. Orbi no puede opinar sobre su descanso, y esto no indica un problema.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sleepHas }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+            <sc-for list="{{ sleep.cards }}" as="sc" hint-placeholder-count="3">
+              <button onClick="{{ sc.onClick }}" style="text-align:left;border:0;background:var(--surface);border-radius:22px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:{{ sc.shadow }};cursor:pointer;transition:box-shadow .3s">
+                <div style="display:flex;align-items:center;gap:10px;width:100%"><span style="font-size:14px;font-weight:600">{{ sc.label }} · anoche</span><span style="flex:1"></span><span style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:{{ sc.stBg }};font-size:11px;font-weight:700;letter-spacing:.1em"><svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><path d="{{ sc.sg.shape }}" fill="{{ sc.sg.fill }}" stroke="{{ sc.sg.stroke }}" stroke-width="1.3" stroke-linejoin="round"></path><path d="{{ sc.sg.mark }}" fill="none" stroke="{{ sc.sg.markC }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ sc.stLabel }}</span></div>
+                <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'Space Grotesk',sans-serif;font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1">{{ sc.value }}</span><span style="font-size:13px;font-weight:600;color:var(--ink-soft)">{{ sc.unit }}</span></div>
+                <div style="font-size:13px">{{ sc.delta }}</div>
+                <div style="font-size:12px;color:var(--ink-soft)">{{ sc.range }}</div>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:16px">
+            <div style="background:var(--surface);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:14px;font-weight:600">Últimas 14 noches · {{ sleep.metricLabel }}</span><span style="flex:1"></span>
+                <div style="display:flex;gap:4px;padding:3px;border-radius:999px;background:var(--bg)"><sc-for list="{{ sleep.metrics }}" as="sm" hint-placeholder-count="3"><button onClick="{{ sm.onClick }}" style="border:0;border-radius:999px;padding:5px 11px;font-size:12px;cursor:pointer;background:{{ sm.bg }};color:{{ sm.fg }};font-weight:600">{{ sm.label }}</button></sc-for></div>
+              </div>
+              <div style="position:relative;height:170px;display:flex;align-items:flex-end;gap:8px">
+                <div style="position:absolute;left:0;right:0;bottom:{{ sleep.bandLo }}%;height:{{ sleep.bandH }}%;background:var(--orbi);opacity:.08;border-radius:6px"></div>
+                <div style="position:absolute;left:0;right:0;bottom:{{ sleep.baseP }}%;border-top:1.5px dashed var(--orbi);opacity:.7"></div>
+                <sc-for list="{{ sleep.nights }}" as="nt" hint-placeholder-count="14">
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;position:relative"><span style="font-size:10.5px;color:var(--ink-soft);height:13px">{{ nt.v }}</span><div style="width:100%;max-width:34px;height:{{ nt.h }}%;border-radius:8px 8px 4px 4px;background:{{ nt.c }};opacity:{{ nt.o }}"></div></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:8px;font-size:11px;color:var(--ink-soft)"><sc-for list="{{ sleep.nights }}" as="nt" hint-placeholder-count="14"><span style="flex:1;text-align:center">{{ nt.lbl }}</span></sc-for></div>
+              <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft)"><span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:10px;border-radius:2px;background:var(--orbi);opacity:.18"></span>Tu rango esperado</span><span style="display:flex;align-items:center;gap:6px"><span style="width:16px;border-top:1.5px dashed var(--orbi)"></span>Tu media: {{ sleep.base }}</span></div>
+            </div>
+            <div style="background:var(--surface);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)">
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #8fb0ff, var(--orbi) 60%, var(--orbi-deep))"></span><span style="font-size:14px;font-weight:600">Lo que Orbi ve</span></div>
+              <div style="font-family:'Space Grotesk';font-size:20px;font-weight:600;line-height:1.35;letter-spacing:-.01em;text-wrap:pretty">{{ sleep.headline }}</div>
+              <div style="font-size:14px;line-height:1.6;color:var(--ink-soft);text-wrap:pretty">{{ sleep.body }}</div>
+              <div style="flex:1"></div>
+              <div style="font-size:11px;color:var(--ink-soft)">Dormir poco es un indicador adelantado: suele aparecer antes que el cansancio en tus pruebas cognitivas.</div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isCog }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:16px;height:100%">
+          <div role="note" style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-radius:16px;background:color-mix(in oklab, var(--state-watch) 14%, transparent);font-size:13px;line-height:1.45"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex:none"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 7.8v.2"></path></svg><span><b>Resultados orientativos.</b> Sirven para compararte contigo, no son un diagnóstico ni sustituyen una evaluación médica.</span></div>
+
+          <sc-if value="{{ cogMenu }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px">
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <sc-for list="{{ cogCards }}" as="ct" hint-placeholder-count="3">
+                  <button onClick="{{ ct.onClick }}" style="text-align:left;border:0;background:var(--surface);border-radius:22px;padding:16px 20px;display:flex;flex-direction:column;gap:8px;box-shadow:{{ ct.shadow }};cursor:pointer;transition:box-shadow .3s">
+                    <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap"><span style="font-size:14px;font-weight:600">{{ ct.name }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft)">{{ ct.code }}</span><span style="flex:1"></span><span style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:{{ ct.stBg }};font-size:11px;font-weight:700;letter-spacing:.1em"><svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><path d="{{ ct.sg.shape }}" fill="{{ ct.sg.fill }}" stroke="{{ ct.sg.stroke }}" stroke-width="1.3" stroke-linejoin="round"></path><path d="{{ ct.sg.mark }}" fill="none" stroke="{{ ct.sg.markC }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ ct.stLabel }}</span></div>
+                    <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'Space Grotesk',sans-serif;font-size:40px;font-weight:700;letter-spacing:-.04em;line-height:1">{{ ct.value }}</span><span style="font-size:13px;font-weight:600;color:var(--ink-soft)">{{ ct.unit }}</span><span style="flex:1"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft)">{{ ct.stCode }}</span></div>
+                    <div style="font-size:13px;color:var(--ink-soft)">{{ ct.delta }}</div>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="background:var(--surface);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">{{ cg.name }}</span><span style="font-size:12px;color:var(--ink-soft)">{{ cg.long }}</span></div><span style="flex:1"></span><span style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:{{ cg.stBg }};font-size:11px;font-weight:700;letter-spacing:.1em"><svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><path d="{{ cg.sg.shape }}" fill="{{ cg.sg.fill }}" stroke="{{ cg.sg.stroke }}" stroke-width="1.3" stroke-linejoin="round"></path><path d="{{ cg.sg.mark }}" fill="none" stroke="{{ cg.sg.markC }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ cg.stLabel }}<span style="font-family:'JetBrains Mono',monospace;font-weight:500;letter-spacing:0;color:var(--ink-soft)">{{ cg.stCode }}</span></span></div>
+                <div style="font-size:13px;line-height:1.5;color:var(--ink-soft)">{{ cg.desc }} {{ cg.hint }}</div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap"><span style="display:flex;align-items:center;gap:6px"><span style="width:16px;border-top:1.5px dashed var(--orbi)"></span>{{ cg.baseLabel }}</span><span style="flex:1"></span><span>B1–B3 = sesiones de tu línea base</span></div>
+                <div style="position:relative;flex:1;min-height:190px;display:flex;align-items:flex-end;gap:10px">
+                  <sc-if value="{{ cg.showBand }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;right:0;bottom:{{ cg.bandLo }}%;height:{{ cg.bandH }}%;background:var(--orbi);opacity:.08;border-radius:6px"></div><div style="position:absolute;left:0;right:0;bottom:{{ cg.baseP }}%;border-top:1.5px dashed var(--orbi);opacity:.7"></div></sc-if>
+                  <sc-for list="{{ cogSessions }}" as="cs" hint-placeholder-count="7">
+                    <div style="flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;position:relative"><span style="font-size:11px;color:var(--ink-soft)">{{ cs.v }}</span><div style="width:100%;max-width:30px;height:{{ cs.h }}%;border-radius:8px 8px 4px 4px;background:{{ cs.c }}"></div></div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:10px;font-size:11px;color:var(--ink-soft)"><sc-for list="{{ cogSessions }}" as="cs" hint-placeholder-count="7"><span style="flex:1;text-align:center">{{ cs.lbl }}</span></sc-for></div>
+                <div style="font-size:13px;line-height:1.5">{{ cg.stateText }}</div>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                  <sc-if value="{{ cg.canStart }}" hint-placeholder-val="{{ true }}"><button onClick="{{ cogIntro }}" style="border:0;border-radius:999px;background:var(--orbi);color:#fff;padding:11px 24px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 8px 22px var(--orbi-glow)">Hacer la prueba (≈ 1 min)</button></sc-if>
+                  <sc-if value="{{ cgNoStart }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--ink-soft);padding:6px 12px;border-radius:999px;border:1px solid var(--hairline)">Esta prueba aún no se puede aplicar desde aquí</span></sc-if>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ cogIntroStep }}" hint-placeholder-val="{{ false }}">
+            <div style="max-width:620px;width:100%;margin:2vh auto 0;background:var(--surface);border-radius:28px;padding:32px;display:flex;flex-direction:column;gap:22px;box-shadow:var(--shadow)">
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;letter-spacing:.16em;color:var(--orbi);font-weight:600">ANTES DE EMPEZAR</span><span style="font-family:'Space Grotesk';font-size:28px;font-weight:700;letter-spacing:-.02em">Tiempo de reacción</span></div>
+              <div style="display:flex;gap:16px"><span style="flex:none;width:30px;height:30px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;color:var(--orbi)">1</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:600">Qué harás</span><span style="font-size:14px;color:var(--ink-soft);line-height:1.5">Mira el anillo. Cuando se llene de azul, toca la pantalla (o la barra espaciadora) lo más rápido que puedas.</span></div></div>
+              <div style="display:flex;gap:16px"><span style="flex:none;width:30px;height:30px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;color:var(--orbi)">2</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:600">Cuánto dura</span><span style="font-size:14px;color:var(--ink-soft);line-height:1.5">Cerca de un minuto: 8 círculos que aparecen a tiempos distintos.</span></div></div>
+              <div style="display:flex;gap:16px"><span style="flex:none;width:30px;height:30px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;color:var(--orbi)">3</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:600">Cómo se puntúa</span><span style="font-size:14px;color:var(--ink-soft);line-height:1.5">Tu tiempo mediano y cuántas veces tardaste más de medio segundo. Se compara solo con tu línea base ({{ cogBase }} ms).</span></div></div>
+              <div style="padding:12px 16px;border-radius:16px;background:var(--bg);font-size:13px;line-height:1.5;color:var(--ink-soft)">Si tocas antes de tiempo no pasa nada; solo lo anotamos. Si hoy estás cansado, ese también es un dato útil.</div>
+              <div style="display:flex;gap:10px"><button onClick="{{ cogStart }}" style="border:0;border-radius:999px;background:var(--orbi);color:#fff;padding:12px 26px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 8px 22px var(--orbi-glow)">Empezar prueba</button><button onClick="{{ cogToMenu }}" style="border:1px solid var(--hairline);border-radius:999px;background:transparent;padding:12px 22px;font-size:15px;cursor:pointer">Ahora no</button></div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ cogTest }}" hint-placeholder-val="{{ false }}">
+            <div style="position:relative;flex:1;min-height:420px;border-radius:28px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden">
+              <div onPointerDown="{{ pvtTap }}" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;cursor:pointer;user-select:none;touch-action:manipulation">
+                <div style="width:180px;height:180px;border-radius:50%;border:2px solid {{ pvtRing }};background:{{ pvtFill }};box-shadow:{{ pvtGlow }};display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Space Grotesk';font-size:34px;font-weight:700;letter-spacing:-.02em;transition:background .08s">{{ pvtCounter }}</div>
+                <div style="font-size:16px;color:var(--ink-soft);height:22px">{{ pvtMsg }}</div>
+              </div>
+              <div style="position:absolute;top:18px;left:22px;right:22px;display:flex;align-items:center;gap:12px;pointer-events:none">
+                <span style="font-family:'Space Grotesk';font-weight:600">{{ pvtProgress }}</span>
+                <div style="display:flex;gap:6px"><sc-for list="{{ pvtDots }}" as="pd" hint-placeholder-count="8"><span style="width:8px;height:8px;border-radius:50%;background:{{ pd.c }}"></span></sc-for></div>
+                <span style="flex:1"></span>
+                <button onClick="{{ askCancel }}" onPointerDown="{{ stop }}" style="pointer-events:auto;border:1px solid var(--hairline);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:13px;cursor:pointer">Cancelar prueba</button>
+              </div>
+              <sc-if value="{{ confirmExit }}" hint-placeholder-val="{{ false }}">
+                <div onPointerDown="{{ stop }}" style="position:absolute;inset:0;background:var(--surface-translucent);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center">
+                  <div style="background:var(--surface);border-radius:22px;padding:26px;max-width:380px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)">
+                    <span style="font-family:'Space Grotesk';font-size:20px;font-weight:700">¿Salir de la prueba?</span>
+                    <span style="font-size:14px;color:var(--ink-soft);line-height:1.5">No se guardará esta sesión. Puedes repetirla cuando quieras.</span>
+                    <div style="display:flex;gap:10px"><button onClick="{{ cancelTest }}" style="border:0;border-radius:999px;background:var(--ink);color:var(--surface);padding:10px 20px;font-weight:600;cursor:pointer">Salir</button><button onClick="{{ resumeTest }}" style="border:1px solid var(--hairline);border-radius:999px;background:transparent;padding:10px 20px;cursor:pointer">Seguir</button></div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ cogResult }}" hint-placeholder-val="{{ false }}">
+            <div style="max-width:620px;width:100%;margin:2vh auto 0;background:var(--surface);border-radius:28px;padding:32px;display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow)">
+              <span style="font-size:11px;letter-spacing:.16em;color:var(--ink-soft)">RESULTADO · COMPARADO CON TU LÍNEA BASE</span>
+              <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-family:'Space Grotesk';font-size:72px;font-weight:700;letter-spacing:-.04em;line-height:1">{{ res.median }}</span><span style="font-size:15px;font-weight:600;color:var(--ink-soft)">ms</span><span style="flex:1"></span><span style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:{{ res.stBg }};font-size:12px;font-weight:700;letter-spacing:.1em"><svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><path d="{{ res.sg.shape }}" fill="{{ res.sg.fill }}" stroke="{{ res.sg.stroke }}" stroke-width="1.3" stroke-linejoin="round"></path><path d="{{ res.sg.mark }}" fill="none" stroke="{{ res.sg.markC }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ res.stLabel }}</span></div>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+                <div style="padding:14px;border-radius:16px;background:var(--bg);display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:var(--ink-soft)">vs línea base</span><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700">{{ res.delta }}</span></div>
+                <div style="padding:14px;border-radius:16px;background:var(--bg);display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:var(--ink-soft)">Lapsos (&gt; 500 ms)</span><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700">{{ res.lapses }}</span></div>
+                <div style="padding:14px;border-radius:16px;background:var(--bg);display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:var(--ink-soft)">Toques anticipados</span><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700">{{ res.early }}</span></div>
+              </div>
+              <div style="font-size:15px;line-height:1.6;text-wrap:pretty">{{ res.note }}</div>
+              <div style="display:flex;gap:10px"><button onClick="{{ cogToMenu }}" style="border:0;border-radius:999px;background:var(--orbi);color:#fff;padding:12px 24px;font-size:15px;font-weight:600;cursor:pointer">Ver historial</button><button onClick="{{ closeAll }}" style="border:1px solid var(--hairline);border-radius:999px;background:transparent;padding:12px 22px;font-size:15px;cursor:pointer">Volver con Orbi</button></div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ showHelp }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:30;background:rgba(15,39,68,.18);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center">
+      <div style="width:min(480px,90vw);background:var(--surface);border-radius:28px;padding:30px;display:flex;flex-direction:column;gap:18px;box-shadow:0 30px 80px rgba(15,39,68,.2)">
+        <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;letter-spacing:.16em;color:var(--orbi);font-weight:600">HOLA, SOY ORBI</span><span style="font-family:'Space Grotesk';font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.25;text-wrap:pretty">Te acompaño en silencio y solo hablo cuando algo cambia.</span></div>
+        <div style="display:flex;gap:14px;align-items:flex-start"><span style="flex:none;width:36px;height:36px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #8fb0ff, var(--orbi) 60%, var(--orbi-deep))"></span><span style="font-size:14px;line-height:1.5"><b>Toca la esfera</b> para ver tus datos. Si cambio de color, algo merece tu atención.</span></div>
+        <div style="display:flex;gap:14px;align-items:flex-start"><span style="flex:none;width:36px;height:36px;border-radius:50%;border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;color:var(--ink-soft)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 16a12 12 0 0 1 18 0M7 12l-3 4 4 1M17 12l3 4-4 1"></path></svg></span><span style="font-size:14px;line-height:1.5"><b>Desliza el arco</b> de abajo para elegir: signos vitales, temperatura, sueño o cognición.</span></div>
+        <div style="display:flex;gap:14px;align-items:flex-start"><span style="flex:none;width:36px;height:36px;border-radius:50%;background:var(--orbi);display:flex;align-items:center;justify-content:center;gap:3px"><span style="width:4px;height:4px;border-radius:50%;background:#fff"></span><span style="width:4px;height:4px;border-radius:50%;background:#fff"></span><span style="width:4px;height:4px;border-radius:50%;background:#fff"></span></span><span style="font-size:14px;line-height:1.5"><b>Toca la burbuja azul</b> para preguntarme. No doy diagnósticos: te explico qué cambió y qué podrías hacer.</span></div>
+        <button onClick="{{ closeHelp }}" style="align-self:flex-start;border:0;border-radius:999px;background:var(--orbi);color:#fff;padding:12px 26px;font-size:15px;font-weight:600;cursor:pointer">Entendido</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;systemState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ok&quot;,&quot;connecting&quot;,&quot;llm_off&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;ok&quot;,&quot;tsType&quot;:&quot;'ok'|'connecting'|'llm_off'|'offline'&quot;,&quot;section&quot;:&quot;Estados del sistema&quot;},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Apariencia&quot;},&quot;motion&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;reduced&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;'full'|'reduced'&quot;,&quot;section&quot;:&quot;Apariencia&quot;}}">
+const urlProps = p => { const q = new URLSearchParams(location.search); return { ...p, systemState: p.systemState || q.get('estado') || 'ok', dark: p.dark ?? q.get('oscuro') === '1', motion: p.motion || q.get('movimiento') || 'full' }; };
+// Capa de datos: en modo en vivo manda el backend (js/api.js + js/live.js); MockAPI solo alimenta el modo demostración.
+const IC = {
+  corazon: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z',
+  temp: 'M10 14.5V5a2 2 0 1 1 4 0v9.5a4 4 0 1 1-4 0zM12 9v7.5',
+  sueno: 'M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z',
+  cognicion: 'M9.5 4.5A2.5 2.5 0 0 0 7 7a2.6 2.6 0 0 0-2.3 3.6A2.8 2.8 0 0 0 5.5 15a2.9 2.9 0 0 0 4 3.5V4.5zM14.5 4.5A2.5 2.5 0 0 1 17 7a2.6 2.6 0 0 1 2.3 3.6 2.8 2.8 0 0 1-.8 4.4 2.9 2.9 0 0 1-4 3.5V4.5zM9.5 4.5h5M9.5 18.5h5',
+  drop: 'M12 3.5s-6 6.6-6 10.5a6 6 0 0 0 12 0c0-3.9-6-10.5-6-10.5z',
+  gauge: 'M4 16a8 8 0 1 1 16 0M12 16l3.5-4.5M12 16h.01',
+  up: 'M7 14l5-5 5 5', down: 'M7 10l5 5 5-5', flat: 'M6 12h12',
+  speaker: 'M4 10v4h3l5 4V6L7 10H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11',
+  mute: 'M4 10v4h3l5 4V6L7 10H4zM16 9l5 6M21 9l-5 6'
+};
+const SEV_HEX = { '-1': '#8aa0bf', 0: '#3b6fe0', 1: '#e0a63b', 2: '#e5533d', 3: '#d92b3f' };
+const TRI = 'M8 1.8L14.8 13.6H1.2Z', EXC = 'M8 6.2v3.6M8 11.7v.3';
+const SHAPES = { '-1': { shape: 'M8 2.2a5.8 5.8 0 1 0 0 11.6A5.8 5.8 0 0 0 8 2.2z', fill: 'none', stroke: '#8aa0bf', mark: '', markC: '#fff' },
+  0: { shape: 'M2.8 2.8h10.4v10.4H2.8z', fill: '#2fb27a', stroke: '#2fb27a', mark: 'M5.4 8.2l1.9 1.9 3.3-3.7', markC: '#fff' },
+  1: { shape: TRI, fill: '#e0a63b', stroke: '#e0a63b', mark: EXC, markC: '#3b2a05' },
+  2: { shape: TRI, fill: '#e5533d', stroke: '#e5533d', mark: EXC, markC: '#fff' },
+  3: { shape: 'M8 1.4a6.6 6.6 0 1 0 0 13.2A6.6 6.6 0 0 0 8 1.4z', fill: '#d92b3f', stroke: '#d92b3f', mark: 'M4.2 4.2l7.6 7.6', markC: '#fff' } };
+const sig = s => SHAPES[s];
+const SEV_VAR = { '-1': 'var(--state-idle)', 0: 'var(--state-ok)', 1: 'var(--state-watch)', 2: 'var(--state-alert)', 3: 'var(--state-crit)' };
+const SEV_LABEL = { '-1': 'SIN DATOS', 0: 'ÓPTIMO', 1: 'VIGILAR', 2: 'ALERTA', 3: 'CRÍTICO' };
+// Códigos 1xxx de GET /aptitud (docs/CODIGOS.md) -> texto del panel y de la cabecera.
+const APT_TEXT = { 1001: 'Saludable. Todo en tu rango; no necesitas hacer nada.', 1002: 'Apto, con seguimiento. Algo merece vigilancia.', 1010: 'No apto por ahora: reposo y volver a medir.', 1011: 'No apto: valor crítico. Atención inmediata.' };
+const APT_LABEL = { 1001: 'Apto', 1002: 'Apto · seguimiento', 1010: 'No apto · riesgo', 1011: 'No apto · crítico' };
+const codeSev = c => { const r = c % 1000; return r === 0 ? -1 : r === 1 ? 0 : r === 2 ? 1 : r === 10 ? 2 : 3; };
+const tint = s => `color-mix(in oklab, ${SEV_VAR[s]} 18%, transparent)`;
+const VIEWS = {
+  corazon: { label: 'Signos vitales', short: 'Vitales', title: 'MONITOREO DE SIGNOS VITALES' },
+  temp: { label: 'Temperatura', short: 'Temp.', title: 'TEMPERATURA CORPORAL' },
+  sueno: { label: 'Sueño', short: 'Sueño', title: 'SUEÑO · POR NOCHE' },
+  cognicion: { label: 'Cognición', short: 'Cognición', title: 'TAMIZAJE COGNITIVO' }
+};
+const VARS = {
+  pulso: { label: 'Ritmo cardíaco', short: 'Pulso', unit: 'LPM', icon: IC.corazon },
+  spo2: { label: 'Oxígeno en sangre', short: 'SpO₂', unit: '%', icon: IC.drop },
+  presion_sistolica: { label: 'Presión sistólica', short: 'Sistólica', unit: 'mmHg', icon: IC.gauge },
+  presion_diastolica: { label: 'Presión diastólica', short: 'Diastólica', unit: 'mmHg', icon: IC.gauge }
+};
+const CLIN = {
+  pulso: v => v > 130 || v < 40 ? 2011 : v > 105 || v < 45 ? 2010 : v > 100 || v < 50 ? 2002 : 2001,
+  spo2: v => v < 88 ? 2011 : v < 92 ? 2010 : v < 95 ? 2002 : 2001,
+  presion_sistolica: v => v > 160 ? 2011 : v > 140 ? 2010 : v > 130 ? 2002 : 2001,
+  presion_diastolica: v => v > 100 ? 2011 : v > 90 ? 2010 : v > 85 ? 2002 : 2001
+};
+function rng(s) { return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; }
+const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+const TESTS = {
+  pvt: { code: 'PVT', name: 'Tiempo de reacción', long: 'Prueba de Vigilancia Psicomotora', unit: 'ms', better: 'lower', desc: 'Toca en cuanto aparezca el círculo. Mide qué tan alerta estás.' },
+  dsst: { code: 'DSST', name: 'Sustitución de dígitos y símbolos', long: 'Digit Symbol Substitution Test', unit: 'aciertos', better: 'higher', desc: 'Empareja símbolos con dígitos usando una clave durante 90 s. Mide velocidad de procesamiento y atención.' },
+  matrix: { code: 'Matrix', name: 'Razonamiento con matrices', long: 'Matrices de razonamiento', unit: 'puntos', better: 'higher', desc: 'Completa patrones visuales. Mide razonamiento abstracto.' }
+};
+function cogEval(tid, ses) {
+  const T = TESTS[tid], n = ses.length, last = n ? ses[n - 1] : null;
+  if (n < 3) return { code: 8000, sev: -1, n, last, base: null, dev: 0, raw: 0 };
+  const base = mean(ses.slice(0, 3)), raw = (last - base) / base, dev = T.better === 'lower' ? raw : -raw, code = dev > .2 ? 8010 : dev > .1 ? 8002 : 8001;
+  return { code, sev: codeSev(code), n, last, base, dev, raw };
+}
+// En vivo: el estado de cada prueba es el nivel OFICIAL del backend (evaluacion de la última sesión, 8xxx); el cliente solo calcula el delta mostrado.
+function cogEvalCr(cr, tid, ses, cogResumen) {
+  const e = cogEval(tid, ses), niv = cr && cr.live && cr.cog && cr.cog.niveles && cr.cog.niveles[tid];
+  if (!niv || !cogResumen) return e;
+  if (!cogResumen.linea_base_completa || ses.length <= 3) return { ...e, code: 8000, sev: -1 };
+  const last = [...niv].reverse().find(x => x);
+  const code = last ? (OrbitalLive.NIVEL_COG[last] || 8001) : e.code;
+  return { ...e, code, sev: codeSev(code) };
+}
+const SLM = { dur: { label: 'Duración', unit: 'h', floor: .4, bad: 1 }, eff: { label: 'Eficiencia', unit: '%', floor: 2, bad: 1 }, lat: { label: 'Latencia', unit: 'min', floor: 3, bad: -1 } };
+function sleepStats(cr) {
+  if (!cr.sleep || !cr.sleep.dur || !cr.sleep.dur.length) return null; const m = {}; let sev = 0;
+  for (const k in SLM) {
+    const M = SLM[k], all = cr.sleep[k] || []; if (!all.length) return null;
+    const v = all.slice(-14);                                   // ventana de las últimas (hasta) 14 noches
+    const nb = Math.max(3, Math.min(10, v.length - 1)), ref = v.slice(0, nb), base = mean(ref);
+    const sd = Math.max(Math.sqrt(mean(ref.map(x => (x - base) ** 2))), M.floor), last = v[v.length - 1];
+    const bd = M.bad === 1 ? base - last : last - base, s = bd > 2 * sd ? 2 : bd > 1.5 * sd ? 1 : 0;
+    m[k] = { vals: v, base, sd, lo: base - 1.5 * sd, hi: base + 1.5 * sd, last, sev: s }; sev = Math.max(sev, s);
+  }
+  return { m, sev };
+}
+const CREW = [
+  { id: 'katya', name: 'Katya E.', role: 'Ingeniera de vuelo', task: 'TURNO B', order: ['sueno', 'corazon', 'cognicion', 'temp'], seed: 11,
+    base: { pulso: [68, 4], spo2: [98, .6], presion_sistolica: [112, 5], presion_diastolica: [72, 4] }, drift: {},
+    sleep: { dur: [7.2, 7.4, 6.9, 7.3, 7.1, 7.5, 7.0, 7.2, 7.3, 6.9, 7.1, 7.0, 6.8, 6.6], eff: [90, 91, 88, 90, 89, 92, 89, 90, 91, 88, 89, 90, 88, 87], lat: [12, 10, 14, 11, 13, 9, 12, 11, 10, 15, 12, 13, 14, 16] },
+    cog: { pvt: [268, 259, 264, 255, 261, 266, 258], dsst: [52, 54, 53, 55, 53, 56, 54], matrix: [14, 15, 14, 16, 15, 15, 16] }, temp: 36.7 },
+  { id: 'jose', name: 'José H.', role: 'Comandante', task: 'EVA-2 EN 3 H', order: ['corazon', 'temp', 'sueno', 'cognicion'], seed: 29,
+    base: { pulso: [62, 4], spo2: [97.6, .6], presion_sistolica: [116, 6], presion_diastolica: [76, 4] }, drift: { presion_sistolica: [60, .18] },
+    sleep: { dur: [6.8, 7.0, 6.9, 7.1, 6.7, 6.9, 7.2, 6.8, 7.0, 6.6, 6.9, 7.1, 6.8, 6.9], eff: [91, 92, 90, 91, 90, 92, 91, 90, 92, 89, 91, 92, 90, 91], lat: [10, 12, 11, 9, 13, 10, 11, 12, 10, 14, 11, 10, 12, 11] },
+    cog: { pvt: [284, 279, 288, 276, 282, 279, 285], dsst: [48, 49, 47, 50, 48, 49, 48], matrix: [12, 13] }, temp: 36.9 },
+  { id: 'rodolfo', name: 'Rodolfo N.', role: 'Especialista de misión', task: 'MANTENIMIENTO', order: ['cognicion', 'corazon', 'sueno', 'temp'], seed: 47,
+    base: { pulso: [66, 5], spo2: [97.8, .5], presion_sistolica: [118, 5], presion_diastolica: [77, 4] }, drift: { pulso: [95, 1.0] },
+    sleep: null,
+    cog: { pvt: [270, 276, 279, 288, 297, 309, 318], dsst: [50, 49, 50, 47, 44, 41, 38], matrix: [15, 14, 15, 14, 13, 12, 11] }, temp: 36.6 },
+  { id: 'carlos', name: 'Carlos N.', role: 'Especialista de carga', task: 'SIN SENSOR', order: ['temp', 'corazon', 'sueno', 'cognicion'], seed: 5, noData: true }
+];
+CREW.forEach(cr => {
+  if (cr.noData) return;
+  const r = rng(cr.seed); cr.series = {}; cr.band = {}; cr.days = {};
+  for (const k in cr.base) {
+    const [b, sd] = cr.base[k], d = cr.drift[k];
+    cr.series[k] = Array.from({ length: 144 }, (_, i) => {
+      let v = b + Math.sin(i / 144 * 2 * Math.PI - Math.PI / 2) * sd * .7 + (r() - .5) * sd * .9;
+      if (d && i > d[0]) v += (i - d[0]) * d[1];
+      return k === 'spo2' ? Math.min(100, v) : v;
+    });
+    cr.band[k] = [b - 2 * sd, k === 'spo2' ? 100 : b + 2 * sd, b, sd];
+    cr.days[k] = Array.from({ length: 14 }, () => b + (r() - .5) * sd * .8);
+  }
+});
+const MockAPI = {
+  tripulantes: () => ({ simulado: true, tripulantes: CREW.map(c => ({ id: c.id, nombre: c.name, variables: c.noData ? [] : Object.keys(c.base) })) }),
+  resumen(cr, idx) {
+    const out = {};
+    for (const k in cr.series) {
+      const s = cr.series[k], v = s[idx], [lo, hi, b, sd] = cr.band[k];
+      const clin = CLIN[k](v);
+      const out_ = v < lo ? lo - v : v > hi ? v - hi : 0;
+      const modelo = out_ === 0 ? 3001 : out_ < sd ? 3002 : 3010;
+      const dv = v - s[Math.max(0, idx - 6)];
+      const tendencia = dv > sd * 1.1 ? 4002 : dv < -sd * 1.1 ? 4003 : 4001;
+      out[k] = { valor: v, rango_esperado: [lo, hi], linea_base: b, codigo_clinico: clin, codigo_modelo: modelo, tendencia, sev: Math.max(codeSev(clin), codeSev(modelo)), dir: v > hi ? 'por encima' : 'por debajo' };
+    }
+    return out;
+  }
+};
+const pad = n => String(n).padStart(2, '0');
+const clockOf = i => `${pad(Math.floor(i * 10 / 60))}:${pad(i * 10 % 60)}`;
+const fmt = (v, k) => k === 'spo2' ? Math.round(v) : Math.round(v);
+const hm = h => [Math.floor(h), Math.round((h % 1) * 60)];
+
+function OrbiSphere(p) {
+  const ref = React.useRef(null), pr = React.useRef(p); pr.current = p;
+  React.useEffect(() => {
+    const c = ref.current, ctx = c.getContext('2d'); let raf; const t0 = performance.now();
+    const N = 1200, pts = [];
+    for (let i = 0; i < N; i++) { const y = 1 - 2 * (i + .5) / N, r = Math.sqrt(1 - y * y), ph = i * 2.399963; pts.push([Math.cos(ph) * r, y, Math.sin(ph) * r, Math.random()]); }
+    const hx = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+    let col = hx(pr.current.color), amp = 0;
+    const draw = now => {
+      const P = pr.current, dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+      if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+      const tg = hx(P.color); col = col.map((v, i) => v + (tg[i] - v) * .015);
+      amp += ((P.speaking ? 1 : 0) - amp) * .05;
+      const t = (now - t0) / 1000, red = P.reduced;
+      const R = Math.min(w, h) * .36 * (1 + (red ? .008 : .03) * Math.sin(t * 1.05));
+      const cx = w / 2, cy = h / 2, [cr, cg, cb] = col.map(Math.round);
+      const g = ctx.createRadialGradient(cx, cy, R * .2, cx, cy, R * 1.55);
+      const gl = P.glow || 0; g.addColorStop(0, `rgba(${cr},${cg},${cb},${.22 + amp * .12 + gl * .3})`); g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      const ry = t * (red ? .03 : .14) + amp * t * .2, cosY = Math.cos(ry), sinY = Math.sin(ry), tx = .38, cosX = Math.cos(tx), sinX = Math.sin(tx);
+      for (const [x0, y0, z0, s] of pts) {
+        const k = 1 + (red ? 0 : .018 * Math.sin(t * 1.7 + s * 12)) + amp * .09 * Math.sin(t * 7 + s * 30);
+        let x = x0 * cosY - z0 * sinY, z = x0 * sinY + z0 * cosY, y = y0 * cosX - z * sinX; z = y0 * sinX + z * cosX;
+        const d = (z + 1) / 2;
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${.12 + .85 * d})`;
+        ctx.beginPath(); ctx.arc(cx + x * R * k, cy + y * R * k, .5 + 1.5 * d, 0, 6.283); ctx.fill();
+      }
+      if (amp > .03) for (let j = 0; j < 3; j++) {
+        const f = ((t * .7 + j / 3) % 1);
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(1 - f) * .35 * amp})`; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cx, cy, R * (1.08 + f * .4), 0, 6.283); ctx.stroke();
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return React.createElement('canvas', { ref, style: { width: '100%', height: '100%', display: 'block' } });
+}
+function EcgCanvas(p) {
+  const ref = React.useRef(null), pr = React.useRef(p); pr.current = p;
+  React.useEffect(() => {
+    const c = ref.current, ctx = c.getContext('2d'); let raf;
+    const G = (ph, m, w, a) => a * Math.exp(-((ph - m) ** 2) / (2 * w * w));
+    const f = ph => G(ph, .12, .025, .12) + G(ph, .3, .008, -.12) + G(ph, .32, .01, 1) + G(ph, .345, .01, -.28) + G(ph, .6, .045, .28);
+    const draw = now => {
+      const P = pr.current, dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+      if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+      const t = now / 1000, pps = w / 3.2, bps = (P.bpm || 70) / 60;
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 1) { const tt = t - (w - x) / pps, ph = (tt * bps) % 1; const y = h * .72 - f(ph) * h * .62; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      const gr = ctx.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, P.color + '00'); gr.addColorStop(.25, P.color); gr.addColorStop(1, P.color);
+      ctx.strokeStyle = gr; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw); return () => cancelAnimationFrame(raf);
+  }, []);
+  return React.createElement('canvas', { ref, style: { position: 'absolute', inset: 0, width: '100%', height: '100%' } });
+}
+
+class Component extends DCLogic {
+  state = { crew: 'katya', dialPos: 0, dialDir: 1, legend: false, sleepMetric: 'dur', cogSel: 'pvt', view: 'home', idx: 108, ended: false, histMode: 'today', histVar: 'pulso',
+    speaking: false, muted: false, caption: '', messages: [], draft: '', showHelp: false, drag: 0, dragging: false, retrying: false,
+    cog: { step: 'menu' }, pvt: null, rtNow: 0, confirmExit: false, sessions: {}, chatTick: 0,
+    live: false, backendUp: false, llmUp: true, liveNotifs: [], detTick: 0 };
+  detalle = {};             // inferencias del backend por tripulante de diseño: {resumen, aptitud, cogHist, cogResumen}
+  userActed = false;        // el navegador bloquea el audio hasta la primera interacción
+  chatScrollRef = React.createRef();
+  componentDidMount() {
+    const cr = CREW[0];
+    this.setState({ messages: [
+      { id: 1, role: 'user', text: '¿Cómo está mi salud? Vi una alerta de fatiga en mi último turno.' },
+      { id: 2, role: 'orbi', status: 'done', text: this.reply(cr, 'fatiga'), sources: this.sources('fatiga') }
+    ], showHelp: !localStorage.getItem('orbital.onboarded'), sessions: Object.fromEntries(CREW.map(c => [c.id, c.cog ? { pvt: c.cog.pvt.slice(), dsst: c.cog.dsst.slice(), matrix: c.cog.matrix.slice() } : { pvt: [], dsst: [], matrix: [] }])) });
+    this.timer = setInterval(() => {
+      if (this.live) return;                 // en modo en vivo manda el SSE del backend, no el reloj sintético
+      const s = urlProps(this.props).systemState;
+      if (s === 'offline' || s === 'connecting' || this.state.ended) return;
+      this.setState(st => st.idx >= 143 ? { ended: true } : { idx: st.idx + 1 });
+    }, 2000);
+    this.initLive();
+    this.keys = e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (this.state.cog.step === 'test' && e.code === 'Space') { e.preventDefault(); this.pvtTap(); return; }
+      if (e.key === 'Escape') this.closeAll();
+      if (e.key === 'ArrowRight') this.shiftDial(1);
+      if (e.key === 'ArrowLeft') this.shiftDial(-1);
+    };
+    window.addEventListener('keydown', this.keys);
+    this.acted = () => { this.userActed = true; };
+    window.addEventListener('pointerdown', this.acted, { once: true }); window.addEventListener('keydown', this.acted, { once: true });
+    this.applyTheme();
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearInterval(this.pollT); clearTimeout(this.detT); window.removeEventListener('keydown', this.keys); this.clearPvt(); clearInterval(this.streamT); this.streamAbort && this.streamAbort.abort(); this.chatAbort && this.chatAbort.abort(); this.voz() && this.voz().voz.callar(); window.speechSynthesis && speechSynthesis.cancel(); }
+  voz() { return window.OrbitalVoz; }
+
+  async initLive() {
+    if (window.ORBITAL_FORCE_DEMO || !window.OrbitalLive || !window.OrbitalAPI) return;   // modo demostración
+    let salud; try { salud = await OrbitalLive.detectar(); } catch (e) { salud = null; }
+    if (!salud) return;                                                                     // backend caído: seguimos en demo
+    let data; try { data = await OrbitalLive.cargarCrew(CREW); } catch (e) { console.warn('[ORBITAL] carga en vivo falló, sigo en demo:', e); return; }
+    // Copiamos los datos reales sobre los objetos CREW (las vistas los leen de ahí).
+    data.crew.forEach((c, i) => { if (c.live) Object.assign(CREW[i], c); });
+    this.live = true; this.detalle = data.detalle || {};
+    const cr0 = this.crewObj(), len = (cr0.live && cr0.series.pulso) ? cr0.series.pulso.length : 0;
+    this.setState({
+      live: true, backendUp: true, llmUp: !!salud.llm_disponible, idx: Math.max(0, len - 1), ended: false,
+      messages: [],                                       // fuera la conversación de ejemplo: en vivo responde el backend
+      sessions: Object.fromEntries(CREW.map(c => [c.id, this.sessionsOf(c)]))
+    });
+    this.openStream(this.state.crew);
+    // Estado del sistema: GET /salud cada pocos segundos (backend caído → "sin conexión"; LLM caído → Orbi no disponible).
+    this.pollT = setInterval(() => this.pollSalud(), 8000);
+  }
+  sessionsOf(c) { return c.cog ? { pvt: c.cog.pvt.slice(), dsst: c.cog.dsst.slice(), matrix: c.cog.matrix.slice() } : { pvt: [], dsst: [], matrix: [] }; }
+
+  async pollSalud() {
+    if (!this.live) return false;
+    const s = await OrbitalAPI.ping(3000);
+    const wasDown = !this.state.backendUp;
+    this.setState({ backendUp: !!s, llmUp: !!(s && s.llm_disponible) });
+    if (s && wasDown) { this.openStream(this.state.crew); this.refreshDetalle(this.state.crew); }   // volvió: reconecta (el snapshot reemplaza el historial)
+    return !!s;
+  }
+
+  // Vuelve a pedir /resumen, /aptitud y cognitivo del tripulante (el backend recalcula con cada lectura nueva).
+  async refreshDetalle(crewId) {
+    const bid = OrbitalLive.BACKEND_ID[crewId], cr = CREW.find(c => c.id === crewId);
+    if (!this.live || !bid || !cr || !cr.live) return;
+    const det = await OrbitalLive.cargarDetalle(bid);
+    if (!det.resumen && !det.aptitud) return;                // backend no respondió: conserva lo último
+    this.detalle[crewId] = det;
+    const med = (det.resumen && det.resumen.medidas) || {};
+    OrbitalLive.VITALES.forEach(k => { if (cr.series[k] && cr.series[k].length && med[k]) cr.band[k] = OrbitalLive.bandaDe(cr.series[k], med[k]); });
+    if (det.cogHist) cr.cog = OrbitalLive.cogDeSesiones(det.cogHist.sesiones);
+    this.setState(s => ({ detTick: s.detTick + 1, sessions: { ...s.sessions, [crewId]: this.sessionsOf(cr) } }));
+  }
+  // Agrupa lecturas: como mucho un refresco de inferencias cada 4 s.
+  scheduleDetalle(crewId) { if (this.detT) return; this.detT = setTimeout(() => { this.detT = null; this.refreshDetalle(crewId); }, 4000); }
+
+  openStream(crewId) {
+    if (!this.live || !window.OrbitalAPI) return;
+    this.streamAbort && this.streamAbort.abort();
+    const bid = OrbitalLive.BACKEND_ID[crewId]; if (!bid) { this.setState({ ended: false }); return; }
+    const cr = CREW.find(c => c.id === crewId); if (!cr || !cr.live) return;
+    const ctrl = new AbortController(); this.streamAbort = ctrl;
+    const V = OrbitalLive.VITALES;
+    // Avisos ya generados antes de conectar (el stream solo manda los nuevos).
+    OrbitalAPI.notificaciones(bid, 0, ctrl.signal).then(ns => {
+      this.setState(s => { const ids = new Set(s.liveNotifs.map(n => n.id)); return { liveNotifs: [...s.liveNotifs, ...ns.filter(n => !ids.has(n.id))].slice(-40) }; });
+    }).catch(() => { });
+    OrbitalAPI.streamSalud(bid, {
+      onSnapshot: d => { const s = {}; V.forEach(k => s[k] = []); (d.historial || []).forEach(h => V.forEach(k => { if (h.valores && h.valores[k] != null) s[k].push(h.valores[k]); }));
+        if (Array.isArray(d.sueno)) cr.sleep = OrbitalLive.sleepDeNoches(d.sueno);   // reconexión: reemplazar, no acumular
+        if (s.pulso.length) { cr.series = Object.assign({}, cr.series, s); this.setState({ idx: s.pulso.length - 1, ended: false }); }
+        this.refreshDetalle(crewId); },
+      onLectura: l => { V.forEach(k => { if (l.valores && l.valores[k] != null) { (cr.series[k] = cr.series[k] || []).push(l.valores[k]); } });
+        this.setState({ idx: (cr.series.pulso || []).length - 1 }); this.scheduleDetalle(crewId); },
+      onSueno: n => { if (!cr.sleep) cr.sleep = { dur: [], eff: [], lat: [], meds: [], fechas: [] }; const v = n.valores || {};
+        if (v.sueno_duracion != null) cr.sleep.dur.push(v.sueno_duracion); if (v.sueno_eficiencia != null) cr.sleep.eff.push(v.sueno_eficiencia);
+        if (v.sueno_latencia != null) cr.sleep.lat.push(v.sueno_latencia); cr.sleep.meds.push(n.medicacion || null); (cr.sleep.fechas = cr.sleep.fechas || []).push(n.timestamp);
+        this.setState(s => ({ chatTick: s.chatTick + 1 })); this.scheduleDetalle(crewId); },
+      onNotificacion: n => {
+        this.setState(s => s.liveNotifs.some(x => x.id === n.id) ? null : { liveNotifs: [...s.liveNotifs, n].slice(-40) });
+        // Voz (FRONT.md §10): solo tras una interacción del usuario; las críticas interrumpen.
+        const V2 = this.voz(); if (V2 && this.userActed) V2.voz.hablar(V2.textoNotificacion(n, cr.name), { interrumpir: n.severidad === 'CRITICO' });
+        this.scheduleDetalle(crewId);
+      },
+      onFin: () => { this.setState({ ended: true }); this.refreshDetalle(crewId); }
+    }, { limite: 144, signal: ctrl.signal }).catch(e => { if (!ctrl.signal.aborted) this.pollSalud(); });
+  }
+
+  // "Reiniciar demo" en vivo: POST /tripulantes/reiniciar-simulacion (204) y reconectar el stream.
+  async restartLive() {
+    try { await OrbitalAPI.reiniciarSimulacion(); } catch (e) { return this.pollSalud(); }
+    this.setState({ liveNotifs: [], ended: false });
+    this.openStream(this.state.crew);                         // el snapshot nuevo reemplaza series y sueño
+  }
+  componentDidUpdate() {
+    this.applyTheme();
+    const el = this.chatScrollRef.current, S = this.state, pv = this.prevUi || {};
+    if (el && (pv.messages !== S.messages || pv.view !== S.view)) el.scrollTop = el.scrollHeight;
+    this.prevUi = { messages: S.messages, view: S.view };
+  }
+  applyTheme() { document.documentElement.dataset.theme = urlProps(this.props).dark ? 'dark' : 'light'; }
+  crewObj() { return CREW.find(c => c.id === this.state.crew); }
+  shiftDial(d) { this.setState(s => ({ dialPos: s.dialPos + d, dialDir: d })); }
+  goDial(i) { this.setState(s => { const cur = ((s.dialPos % 4) + 4) % 4; let df = (((i - cur) % 4) + 4) % 4; if (df > 2) df -= 4; if (df === 2) df = s.dialDir >= 0 ? 2 : -2; return { dialPos: s.dialPos + df, dialDir: df || s.dialDir }; }); }
+  closeAll = () => { if (this.state.cog.step === 'test') return this.setState({ confirmExit: true }); this.setState({ view: 'home', drag: 0 }); };
+  sources(q) { return q === 'sueno' ? [{ label: 'contramedidas_sueno.pdf · p. 12' }, { label: 'manual_salud_tripulacion.pdf · p. 58' }] : [{ label: 'manual_salud_tripulacion.pdf · p. 34' }, { label: 'contramedidas_sueno.pdf · p. 7' }]; }
+
+  analyze(cr, idx) {
+    if (!cr || cr.noData) return { sev: -1, vitalsSev: -1, sleepSev: -1, cogSev: -1, res: null, reasons: [] };
+    const det = (cr.live && this.detalle[cr.id]) || null;
+    // En vivo: códigos del backend (/resumen). Sin respuesta aún: aproximación local (MockAPI) sobre la serie real.
+    const res = (det && OrbitalLive.resDeResumen(det.resumen, cr.series, cr.band)) || MockAPI.resumen(cr, idx);
+    let vitalsSev = 0; const reasons = [];
+    for (const k in res) { const r = res[k]; vitalsSev = Math.max(vitalsSev, r.sev); if (r.sev > 0) reasons.push({ sev: r.sev, view: 'corazon', k, text: r.interpretacion ? `${VARS[k].label}: ${r.interpretacion}` : r.deriva ? `${VARS[k].label} con deriva lenta ${r.dir === 'por encima' ? 'al alza' : 'a la baja'}` : `${VARS[k].label} ${r.dir} de tu rango personal` }); }
+    const SS = this.sleepStatsCr(cr), sleepSev = SS ? SS.sev : -1;
+    if (sleepSev > 0) { const wk = Object.keys(SLM).find(k => SS.m[k].sev === sleepSev); reasons.push({ sev: sleepSev, view: 'sueno', text: `Tu ${SLM[wk].label.toLowerCase()} de sueño salió de tu rango` }); }
+    const cg = (this.state.sessions[cr.id]) || {}, cres = det && det.cogResumen; let cogSev = -1;
+    for (const t in TESTS) { const e = cogEvalCr(cr, t, cg[t] || [], cres); cogSev = Math.max(cogSev, e.sev); if (e.sev > 0) reasons.push({ sev: e.sev, view: 'cognicion', text: `Tu resultado en ${TESTS[t].code} está ${e.sev === 2 ? 'bastante ' : ''}por debajo de tu línea base` }); }
+    if (cres && cres.linea_base_completa && cres.codigo_nivel) cogSev = Math.max(cogSev, codeSev(cres.codigo_nivel));   // estado cognitivo global del backend
+    reasons.sort((a, b) => b.sev - a.sev);
+    return { sev: Math.max(vitalsSev, sleepSev, cogSev), vitalsSev, sleepSev, cogSev, res, reasons };
+  }
+  // Sueño: rango personal calculado en cliente + nivel clínico del backend por noche (los límites clínicos mandan).
+  sleepStatsCr(cr) {
+    const SS = sleepStats(cr); if (!SS) return null;
+    const det = cr.live && this.detalle[cr.id], bs = det && OrbitalLive.sleepSevDeResumen(det.resumen);
+    if (bs) { let sev = 0; for (const k in SS.m) { if (bs[k] != null) SS.m[k].sev = Math.max(SS.m[k].sev, Math.min(2, bs[k])); sev = Math.max(sev, SS.m[k].sev); } SS.sev = sev; }
+    return SS;
+  }
+  reply(cr, q) {
+    const first = cr.name.split(' ')[0];
+    if (cr.noData) return `Todavía no tengo lecturas de ${first}, así que no puedo decirte cómo está. Revisa que su sensor esté colocado; en cuanto lleguen datos empiezo a aprender su línea base.`;
+    const A = this.analyze(cr, this.state.idx), r = A.res;
+    const vit = `pulso ${fmt(r.pulso.valor)} lpm, oxígeno ${fmt(r.spo2.valor)} % y presión ${fmt(r.presion_sistolica.valor)}/${fmt(r.presion_diastolica.valor)} mmHg`;
+    const out = A.reasons.filter(x => x.view === 'corazon').map(x => x.text.toLowerCase());
+    let t = `${first}, revisé tus datos de hoy: ${vit}. `;
+    t += out.length ? `Lo que cambió: ${out.join(' y ')}. Va despacio, por eso te aviso ahora y no cuando sea un problema.` : 'Todo está dentro de tu rango personal.';
+    if (q === 'color') t = `Cambio de color cuando algo se sale de lo normal para ti, no para un promedio. Ahora mismo: ${A.reasons.length ? A.reasons[0].text.toLowerCase() + '.' : 'nada; por eso estoy en azul.'} ` + t;
+    const SS = this.sleepStatsCr(cr);
+    if (SS) { const d = cr.sleep.dur.slice(-3), [h, m] = hm(d[2]), down = d[0] > d[1] && d[1] > d[2];
+      t += `\n\nAnoche dormiste ${h} h ${m} min (tu media es ${SS.m.dur.base.toFixed(1)} h), tardaste ${Math.round(SS.m.lat.last)} min en dormirte y tu eficiencia fue ${Math.round(SS.m.eff.last)} %` + (down ? '. Es la tercera noche a la baja: una señal temprana, todavía no un problema.' : '.');
+      if (q === 'fatiga' || q === 'sueno') t += `\n\nTe sugiero un descanso de 20 min antes de tu siguiente tarea y adelantar tu hora de dormir 30 min esta noche.`; }
+    else t += `\n\nNo recibo datos de sueño de ${first}, así que no puedo opinar sobre su descanso.`;
+    t += '\n\nLas pruebas cognitivas son orientativas: sirven para compararte contigo, no para diagnosticar.';
+    return t;
+  }
+  send(text) {
+    text = (text || '').trim(); if (text.length < 2 || text.length > 1000 || this.streaming || this.props.systemState === 'llm_off' || (this.live && !this.state.llmUp)) return;
+    const cr = this.crewObj(), q = /color|ámbar|naranja|azul/i.test(text) ? 'color' : /sueñ|dorm|fatig|cans/i.test(text) ? 'sueno' : 'gen';
+    const id = Date.now();
+    this.streaming = true; this.searchStart = performance.now();
+    this.setState(s => ({ draft: '', messages: [...s.messages, { id: id - 1, role: 'user', text }, { id, role: 'orbi', status: 'searching', text: '', sources: [] }], speaking: true }));
+    if (this.live && this.state.llmUp && window.OrbitalAPI) return this.sendReal(id, text, cr);
+    const full = this.reply(cr, q), words = full.split(/(\s+)/);
+    const upd = fn => this.setState(s => ({ messages: s.messages.map(m => m.id === id ? fn(m) : m) }));
+    let i = 0, tick = 0;
+    this.streamT = setInterval(() => {
+      tick++;
+      const el = (performance.now() - this.searchStart) / 1000;
+      if (el < 2.6) { if (el > 1.2) upd(m => m.sources.length ? { ...m, tick } : { ...m, sources: this.sources(q), tick }); else upd(m => ({ ...m, tick })); return; }
+      i += 2; upd(m => ({ ...m, status: i >= words.length ? 'done' : 'streaming', text: words.slice(0, i).join('') }));
+      if (i >= words.length) { clearInterval(this.streamT); this.streaming = false; this.setState({ speaking: false }); }
+    }, 45);
+  }
+  // Chat real: POST /preguntar/stream del backend, con el tripulante seleccionado como contexto.
+  sendReal(id, text, cr) {
+    const upd = fn => this.setState(s => ({ messages: s.messages.map(m => m.id === id ? fn(m) : m) }));
+    const bid = (window.OrbitalLive && OrbitalLive.BACKEND_ID[cr.id]) || undefined;
+    const ctrl = new AbortController(); this.chatAbort = ctrl; let acc = '', done = false;
+    const V = this.voz(), lector = V ? V.lectorStream() : null; this.lector = lector;   // lee cada oración en cuanto se completa (FRONT.md §10)
+    const tickT = setInterval(() => upd(m => ({ ...m, tick: (m.tick || 0) + 1 })), 120);
+    const finish = extra => { if (done) return; done = true; clearInterval(tickT); this.streaming = false; this.setState({ speaking: false }); if (extra) upd(extra); };
+    OrbitalAPI.preguntarStream({ pregunta: text, usuario: bid }, {
+      onFuentes: fs => upd(m => ({ ...m, sources: (fs || []).map(f => ({ label: `${f.archivo} · p. ${f.paginas}` })) })),
+      onToken: t => { acc += t; lector && lector.agregar(t); upd(m => ({ ...m, status: 'streaming', text: acc })); },
+      onFin: () => { lector && lector.fin(); finish(m => ({ ...m, status: 'done', text: acc || m.text })); },
+      onError: msg => { lector && lector.cancelar(); finish(m => ({ ...m, status: 'done', text: (acc ? acc + ' ' : '') + '⚠️ ' + (msg || 'Orbi no está disponible ahora.') })); this.pollSalud(); }
+    }, { signal: ctrl.signal })
+      .then(() => finish(m => m.status === 'done' ? m : { ...m, status: 'done', text: acc || m.text }))
+      .catch(e => { if (ctrl.signal.aborted) return finish(); lector && lector.cancelar();
+        const d = e && e.message || '', msg = /HTTP 404/.test(d) ? 'Ese tripulante no existe en el sistema.' : /HTTP 422/.test(d) ? 'La pregunta debe tener entre 2 y 1000 caracteres.' : 'No pude conectar con Orbi. Revisa que el backend esté encendido.';
+        finish(m => ({ ...m, status: 'done', text: acc || msg })); });
+  }
+  stopStream() { clearInterval(this.streamT); this.chatAbort && this.chatAbort.abort(); this.lector && this.lector.cancelar(); this.streaming = false; this.setState(s => ({ speaking: false, messages: s.messages.map(m => m.status === 'searching' || m.status === 'streaming' ? { ...m, status: 'stopped', text: m.text ? m.text + ' …' : 'Detuve la respuesta.' } : m) })); }
+  speak(text) {
+    if (this.state.speaking) { window.speechSynthesis && speechSynthesis.cancel(); clearTimeout(this.spT); return this.setState({ speaking: false }); }
+    this.setState({ speaking: true, caption: text });
+    const done = () => this.setState({ speaking: false });
+    if (window.speechSynthesis && !this.state.muted) {
+      const u = new SpeechSynthesisUtterance(text); u.lang = 'es-MX'; u.rate = .98; u.onend = done; u.onerror = done; speechSynthesis.cancel(); speechSynthesis.speak(u);
+      this.spT = setTimeout(done, 16000);
+    } else this.spT = setTimeout(done, 6500);
+  }
+  clearPvt() { clearTimeout(this.pvtT); clearInterval(this.pvtTick); clearTimeout(this.pvtMsgT); }
+  pvtSchedule() {
+    this.clearPvt();
+    this.setState(s => ({ pvt: { ...s.pvt, phase: 'wait' }, rtNow: 0 }));
+    this.pvtT = setTimeout(() => {
+      this.stim = performance.now();
+      this.setState(s => ({ pvt: { ...s.pvt, phase: 'go' } }));
+      this.pvtTick = setInterval(() => this.setState({ rtNow: performance.now() - this.stim }), 30);
+    }, 1600 + Math.random() * 2600);
+  }
+  pvtTap = () => {
+    const p = this.state.pvt; if (!p || this.state.confirmExit) return;
+    if (p.phase === 'wait') { this.clearPvt(); this.setState({ pvt: { ...p, phase: 'early', early: p.early + 1 } }); this.pvtMsgT = setTimeout(() => this.pvtSchedule(), 1000); return; }
+    if (p.phase !== 'go') return;
+    const rt = performance.now() - this.stim; this.clearPvt();
+    const trials = [...p.trials, rt];
+    this.setState({ pvt: { ...p, phase: 'hit', trials, last: rt }, rtNow: rt });
+    this.pvtMsgT = setTimeout(() => trials.length >= 8 ? this.pvtFinish(trials, p.early) : this.pvtSchedule(), 900);
+  };
+  pvtFinish(trials, early) {
+    const cr = this.crewObj(), s = [...trials].sort((a, b) => a - b), med = Math.round((s[3] + s[4]) / 2);
+    const prev = (this.state.sessions[cr.id] || {}).pvt || [], base = prev.length >= 3 ? mean(prev.slice(0, 3)) : null;
+    const pct = base ? (med - base) / base : 0, sev = !base ? -1 : pct > .2 ? 2 : pct > .1 ? 1 : 0;
+    this.setState(st => ({ cog: { step: 'result', med, pct, sev, base, left: Math.max(0, 3 - prev.length - 1), lapses: trials.filter(t => t > 500).length, early }, pvt: null, sessions: { ...st.sessions, [cr.id]: { ...st.sessions[cr.id], pvt: [...st.sessions[cr.id].pvt, med].slice(-8) } } }));
+    // En vivo: guarda la sesión real en el backend (POST /tripulantes/{id}/cognitivo). No bloquea la UI.
+    if (this.live && window.OrbitalLive && OrbitalLive.BACKEND_ID[cr.id]) {
+      const primera = !cr.cog || !cr.cog.total;                 // primera sesión = familiarización (no cuenta para la línea base)
+      OrbitalAPI.guardarCognitivo(OrbitalLive.BACKEND_ID[cr.id], OrbitalLive.sesionPVT(trials, early, primera))
+        .then(r => {
+          // Estado oficial (8000 = completando línea base, 8001/8002/8010). Un 8010 aislado no se presenta como hallazgo.
+          const code = r.codigo_nivel, sev = code === 8000 || primera ? -1 : codeSev(code);
+          this.setState(st => ({ cog: st.cog.step === 'result' ? { ...st.cog, saved: true, backendEstado: r.estado, backendCode: code, sev, familiar: primera } : st.cog }));
+          (r.notificaciones || []).forEach(n => this.setState(s => s.liveNotifs.some(x => x.id === n.id) ? null : { liveNotifs: [...s.liveNotifs, n].slice(-40) }));
+          this.refreshDetalle(cr.id);
+        })
+        .catch(e => { console.warn('[ORBITAL] no se pudo guardar la sesión cognitiva:', e); this.setState(st => ({ cog: st.cog.step === 'result' ? { ...st.cog, saveError: true } : st.cog })); });
+    }
+  }
+
+  renderVals() {
+    const S = this.state, P = urlProps(this.props), sys = P.systemState || 'ok', reduced = P.motion === 'reduced' || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const cr = this.crewObj(), connecting = sys === 'connecting', offline = sys === 'offline' || (S.live && !S.backendUp), llmOff = sys === 'llm_off' || (S.live && !S.llmUp);
+    const aptLive = !cr.noData && cr.live && this.detalle[cr.id] ? this.detalle[cr.id].aptitud : null;
+    const A = connecting ? { sev: -1, vitalsSev: -1, sleepSev: -1, cogSev: -1, res: null, reasons: [] } : this.analyze(cr, S.idx);
+    const first = cr.name.split(' ')[0];
+    const dIdx = ((S.dialPos % 4) + 4) % 4, order = cr.order, activeKey = order[dIdx];
+    const inDash = S.view === 'dash', inChat = S.view === 'chat';
+    const orbiColor = offline ? SEV_HEX[-1] : SEV_HEX[A.sev];
+    const statusSev = { corazon: A.vitalsSev, sueno: A.sleepSev, cognicion: A.cogSev, temp: cr.noData ? -1 : 0 };
+    const openDash = () => this.setState({ view: 'dash', drag: 0 });
+    const hour = 6 + Math.floor(S.idx * 10 / 60) % 24;
+    const homeLine = connecting ? 'Conectando con ORBITAL…' : offline ? 'Sin conexión con el sistema de datos' : cr.noData ? 'Todavía sin lecturas · aprendiendo su línea base' : A.reasons.length ? A.reasons[0].text + ' · toca para ver' : 'Todo dentro de tu rango personal';
+    const summary = cr.noData ? `Aún no tengo lecturas de ${first}.` : `${first}, ${A.reasons.length ? A.reasons[0].text.toLowerCase() + '. Va despacio; te sugiero revisarlo en el tablero.' : 'todo está dentro de tu rango personal. Pulso ' + fmt(A.res ? A.res.pulso.valor : 0) + ' latidos por minuto, oxígeno ' + fmt(A.res ? A.res.spo2.valor : 0) + ' por ciento.'} Recuerda que no doy diagnósticos.`;
+
+    const crewList = CREW.map(c => {
+      const sel = c.id === S.crew, a = connecting ? { sev: -1 } : this.analyze(c, S.idx);
+      return { name: c.name, selected: sel, bg: sel ? 'var(--orbi)' : 'var(--surface)', fg: sel ? '#fff' : 'var(--ink-soft)', shadow: sel ? '0 10px 26px var(--orbi-glow)' : 'var(--shadow)', weight: sel ? 700 : 500, label: sel ? 'var(--ink)' : 'var(--ink-soft)', dot: a.sev <= 0 ? (a.sev === -1 ? 'var(--state-idle)' : 'var(--state-ok)') : SEV_VAR[a.sev],
+        onClick: () => { if (this.state.cog.step === 'test') return; const nc = CREW.find(x => x.id === c.id); const ni = this.live && nc && nc.series && nc.series.pulso ? nc.series.pulso.length - 1 : this.state.idx; this.voz() && this.voz().voz.callar(); this.setState({ crew: c.id, dialPos: 0, cog: { step: 'menu' }, idx: Math.max(0, ni) }); this.openStream(c.id); } };
+    });
+    const dir = S.dialDir >= 0 ? 1 : -1; this.po = this.po || {};
+    const dialItems = order.map((k, i) => {
+      const d = (((i - S.dialPos) % 4) + 4) % 4, off = d === 0 ? 0 : d === 1 ? 1 : d === 3 ? -1 : (dir >= 0 ? -2 : 2);
+      const jump = this.po[i] !== undefined && Math.abs(off - this.po[i]) > 2.5; this.po[i] = off;
+      const th = off * 28 * Math.PI / 180, act = off === 0, ss = statusSev[k], al = ss > 0, sc = SEV_VAR[ss], beat = al && !reduced ? (ss >= 2 ? '1.2s' : '2.2s') : null;
+      return { label: VIEWS[k].label, icon: IC[k], x: 260 + 290 * Math.sin(th) - 24, y: 330 - 290 * Math.cos(th) - 24, s: act ? 1.22 : .86, o: Math.abs(off) === 2 ? 0.4 : act ? 1 : .8,
+        trans: jump ? 'none' : 'transform .45s var(--ease),opacity .45s var(--ease),background .3s',
+        bg: al ? tint(ss) : act ? 'var(--surface)' : 'transparent', fg: al ? sc : act ? 'var(--orbi)' : 'var(--ink-soft)',
+        border: al ? '2px solid ' + sc : act ? '1.5px solid var(--orbi)' : '1px solid var(--hairline)',
+        shadow: al ? '0 0 0 4px ' + tint(ss) + ', 0 0 26px ' + SEV_HEX[ss] + '88' : act ? '0 8px 22px var(--orbi-glow)' : 'none',
+        anim: beat ? 'orbPulse' + Math.min(3, ss) + ' ' + beat + ' ease-in-out infinite' : 'none', iconAnim: beat ? 'orbBeat ' + beat + ' ease-in-out infinite' : 'none',
+        dot: sc, dotO: al ? 1 : 0, dotAnim: al && !reduced ? 'orbBlink 1.2s ease-in-out infinite' : 'none',
+        onClick: e => { e.stopPropagation(); if (this.moved) return; act ? openDash() : this.goDial(i); } };
+    });
+    const segItems = order.map((k, i) => { const ss = statusSev[k], on = i === dIdx; return { label: VIEWS[k].label, short: VIEWS[k].short, icon: IC[k], active: on, bg: on ? 'var(--surface)' : 'transparent', fg: on ? 'var(--orbi)' : 'var(--ink-soft)', shadow: on ? 'var(--shadow)' : 'none', dotC: ss > 0 ? SEV_VAR[ss] : 'transparent', dotAnim: ss > 0 && !reduced ? 'orbBlink 1.2s ease-in-out infinite' : 'none', onClick: () => { if (this.state.cog.step === 'test') return; this.goDial(i); } }; });
+    const legend = [
+      { sg: sig(0), name: 'ÓPTIMO', role: 'Información', text: 'Dentro de tu rango personal. No necesitas hacer nada.' },
+      { sg: sig(1), name: 'VIGILAR', role: 'Precaución', text: 'Algo se mueve despacio. Revisa cuando puedas.' },
+      { sg: sig(2), name: 'ALERTA', role: 'Precaución alta', text: 'Fuera de tu rango. Actúa pronto y avisa al oficial médico.' },
+      { sg: sig(3), name: 'CRÍTICO', role: 'Prohibición', text: 'No realices la actividad (por ejemplo, una EVA) hasta volver a medir.' },
+      { sg: sig(-1), name: 'SIN DATOS', role: 'Sin lectura', text: 'Aún no hay lecturas; esto no indica un problema.' }
+    ];
+
+    const res = A.res, clock = clockOf(S.idx);
+    let banner = { show: false, sg: sig(0) }, cards = [], hist = { ticks: [] }, aptHeadline = '', aptMotivos = [], aptRecs = [], notifs = [], histVars = [], histModes = [];
+    if (res) {
+      const groups = [];
+      Object.keys(res).forEach(k => { if (k === 'presion_diastolica' && res.presion_sistolica) return; groups.push(k); });
+      cards = groups.map(k => {
+        const isP = k === 'presion_sistolica' && res.presion_diastolica, r = res[k], r2 = isP ? res.presion_diastolica : null;
+        const sev = Math.max(r.sev, r2 ? r2.sev : 0), tr = r.tendencia;
+        const c = { label: isP ? 'Presión arterial' : VARS[k].label, icon: isP ? IC.gauge : VARS[k].icon, unit: VARS[k].unit, value: isP ? `${fmt(r.valor)}/${fmt(r2.valor)}` : fmt(r.valor, k),
+          sg: sig(sev), stLabel: SEV_LABEL[sev], stColor: SEV_VAR[sev], stBg: tint(sev), trendIcon: tr === 4002 ? IC.up : tr === 4003 ? IC.down : IC.flat, trend: tr === 4002 ? (r.codigo_modelo !== 3001 ? 'deriva al alza' : 'subiendo') : tr === 4003 ? 'bajando' : 'estable',
+          range: isP ? `Tu rango: ${Math.round(r.rango_esperado[0])}–${Math.round(r.rango_esperado[1])} / ${Math.round(r2.rango_esperado[0])}–${Math.round(r2.rango_esperado[1])} mmHg` : `Tu rango: ${Math.round(r.rango_esperado[0])}–${Math.round(r.rango_esperado[1])} ${VARS[k].unit.toLowerCase()}`,
+          shadow: sev >= 2 ? '0 0 0 2px ' + SEV_VAR[sev] + ', 0 0 30px ' + SEV_HEX[sev] + '55' : S.histVar === k || (isP && S.histVar === 'presion_diastolica') ? '0 0 0 1.5px var(--orbi), var(--shadow)' : 'var(--shadow)',
+          isEcg: k === 'pulso', isBars: !!isP, isSpark: k !== 'pulso' && !isP, onClick: () => this.setState({ histVar: k }) };
+        if (k === 'pulso') c.ecgEl = React.createElement(EcgCanvas, { bpm: r.valor, color: SEV_HEX[sev] === SEV_HEX[0] ? '#3b6fe0' : SEV_HEX[sev] });
+        if (isP) c.bars = Array.from({ length: 14 }, (_, j) => { const i = Math.max(0, S.idx - 13 + j), sy = cr.series.presion_sistolica[i], dy = cr.series.presion_diastolica[i], sv = codeSev(CLIN.presion_sistolica(sy)); return { bot: (dy - 50) / 110 * 100, h: (sy - dy) / 110 * 100, c: sv > 0 ? SEV_VAR[sv] : 'var(--orbi)' }; });
+        if (c.isSpark) { let s = cr.series[k].slice(Math.max(0, S.idx - 23), S.idx + 1); if (s.length < 2) s = [s[0] ?? r.valor, s[0] ?? r.valor]; const [lo, hi] = r.rango_esperado, mn = Math.min(lo, ...s) - .5, mx = Math.max(hi, ...s) + .5, Y = v => 52 - (v - mn) / (mx - mn) * 48;
+          c.spark = 'M' + s.map((v, j) => `${(j / (s.length - 1) * 200).toFixed(1)} ${Y(v).toFixed(1)}`).join('L'); c.bandY = Y(hi); c.bandH = Y(lo) - Y(hi); c.lineColor = sev > 0 ? SEV_HEX[sev] : 'var(--ink)'; }
+        return c;
+      });
+      const hv = S.histVar, band = cr.band[hv], today = S.histMode === 'today';
+      const vals = today ? cr.series[hv].slice(0, S.idx + 1) : [...cr.days[hv], cr.series[hv].slice(0, S.idx + 1).reduce((a, b) => a + b, 0) / (S.idx + 1)];
+      const mn = Math.min(band[0], ...vals) - band[3] * .6, mx = Math.max(band[1], ...vals) + band[3] * .6, Y = v => 190 - (v - mn) / (mx - mn) * 180;
+      const X = j => today ? j / 143 * 600 : j / 14 * 600;
+      const lastV = vals[vals.length - 1], hs = res[hv].sev;
+      hist = { line: 'M' + vals.map((v, j) => `${X(j).toFixed(1)} ${Y(v).toFixed(1)}`).join('L'), bandY: Y(band[1]), bandH: Y(band[0]) - Y(band[1]), baseY: Y(band[2]),
+        dotX: X(vals.length - 1) / 6, dotY: Y(lastV) / 2, dotColor: hs > 0 ? SEV_VAR[hs] : 'var(--orbi)', dotRing: hs > 0 ? tint(hs) : 'var(--orbi-glow)',
+        hi: Math.round(band[1]), lo: Math.round(band[0]), hiY: Y(band[1]) / 2, loY: Y(band[0]) / 2,
+        ticks: today ? ['00:00', '06:00', '12:00', '18:00', '24:00'] : ['−14 d', '−10 d', '−7 d', '−3 d', 'hoy'] };
+      histVars = Object.keys(res).map(k => ({ label: VARS[k].short, bg: k === hv ? 'var(--surface)' : 'transparent', fg: k === hv ? 'var(--ink)' : 'var(--ink-soft)', onClick: () => this.setState({ histVar: k }) }));
+      histModes = [['today', 'Hoy · real'], ['15d', '15 días']].map(([m, l]) => ({ label: l, bg: S.histMode === m ? 'var(--surface)' : 'transparent', fg: S.histMode === m ? 'var(--ink)' : 'var(--ink-soft)', onClick: () => this.setState({ histMode: m }) }));
+      const vs = A.vitalsSev;
+      const top = A.reasons.find(x => x.view === 'corazon');
+      if (top) { const rr = res[top.k], sv = rr.sev; banner = { show: true, sg: sig(sv), bg: tint(sv), border: SEV_VAR[sv], title: SEV_LABEL[sv] + ' · ' + VARS[top.k].label, text: VARS[top.k].label + ' ' + rr.dir + ' de tu rango personal: ' + fmt(rr.valor) + ' ' + VARS[top.k].unit.toLowerCase() + '.', action: sv >= 2 ? 'Descansa 15 min y avisa al oficial médico.' : 'Repite la medición en reposo en 30 min.' }; }
+      aptHeadline = vs === 0 ? 'Todo en tu rango. No necesitas hacer nada.' : vs === 1 ? 'Apto, con seguimiento. Algo se está moviendo despacio.' : 'No recomendado para EVA hasta volver a medir.';
+      aptMotivos = Object.keys(res).filter(k => res[k].sev > 0).map(k => ({ c: SEV_VAR[res[k].sev], t: `${VARS[k].label} ${res[k].dir} de tu rango personal (${fmt(res[k].valor)} ${VARS[k].unit.toLowerCase()}).` }));
+      const recs = vs === 0 ? ['Sigue con tu rutina de hidratación y ejercicio.', 'Orbi te avisará si algo cambia.'] : vs === 1 ? ['Repite la medición en reposo dentro de 30 min.', 'Reduce cafeína y sal en tu siguiente comida.', 'Si sigue subiendo, avisa al oficial médico de la tripulación.'] : ['Siéntate y descansa 15 min; Orbi volverá a medir.', 'Avisa al oficial médico de la tripulación.', 'Envía este resumen a Tierra: la respuesta tarda unos 40 min.'];
+      aptRecs = recs.map((t, i) => ({ n: i + 1, t }));
+      notifs = Object.keys(res).filter(k => res[k].sev > 0).map(k => ({ c: SEV_VAR[res[k].sev], t: res[k].tendencia === 4002 ? `Deriva lenta: ${VARS[k].short.toLowerCase()} subiendo en la última hora` : `${VARS[k].short} fuera de tu rango`, time: clock }));
+      // En vivo: veredicto OFICIAL de GET /aptitud (1001/1002/1010/1011) y avisos reales (SSE `notificacion` + /notificaciones).
+      const apt = cr.live && this.detalle[cr.id] && this.detalle[cr.id].aptitud;
+      if (apt) {
+        const as = codeSev(apt.codigo);
+        aptHeadline = APT_TEXT[apt.codigo] || aptHeadline;
+        aptMotivos = [...apt.motivos.map(m => ({ c: SEV_VAR[Math.max(2, as)], t: m.mensaje })), ...apt.observaciones.map(o => ({ c: SEV_VAR[1], t: o.mensaje }))].slice(0, 4);
+        if (apt.recomendaciones && apt.recomendaciones.length) aptRecs = apt.recomendaciones.slice(0, 4).map((t, i) => ({ n: i + 1, t }));
+      }
+      if (cr.live) {
+        const bid = cr.backendId, NS = { VIGILAR: 1, ALERTA: 2, CRITICO: 3 };
+        notifs = S.liveNotifs.filter(n => n.usuario === bid).slice(-5).reverse().map(n => ({ c: SEV_VAR[NS[n.severidad] || 1], t: n.mensaje, time: n.timestamp && n.timestamp.length > 10 ? n.timestamp.slice(11, 16) : (n.timestamp || '') }));
+      }
+    }
+
+    const SS = this.sleepStatsCr(cr); let sleep = { none: !SS };
+    const fv = (k, v) => k === 'dur' ? v.toFixed(1) : String(Math.round(v));
+    if (SS) {
+      const sm = S.sleepMetric, D = SS.m[sm], M = SLM[sm], mx = Math.max(...D.vals, D.hi) * 1.12, dd = cr.sleep.dur.slice(-3), down = dd[0] > dd[1] && dd[1] > dd[2];
+      const worst = Object.keys(SLM).find(k => SS.m[k].sev === SS.sev);
+      sleep = { none: false,
+        cards: Object.keys(SLM).map(k => { const d = SS.m[k], df = d.last - d.base; return { label: SLM[k].label, unit: SLM[k].unit, value: fv(k, d.last), sg: sig(d.sev), stLabel: SEV_LABEL[d.sev], stBg: tint(d.sev),
+          delta: `${df >= 0 ? '+' : '−'}${Math.abs(df).toFixed(k === 'dur' ? 1 : 0)} ${SLM[k].unit} vs tu media`, range: `Tu rango: ${fv(k, d.lo)}–${fv(k, d.hi)} ${SLM[k].unit}`,
+          shadow: k === sm ? '0 0 0 1.5px var(--orbi), var(--shadow)' : 'var(--shadow)', onClick: () => this.setState({ sleepMetric: k }) }; }),
+        metrics: Object.keys(SLM).map(k => ({ label: SLM[k].label, bg: k === sm ? 'var(--surface)' : 'transparent', fg: k === sm ? 'var(--ink)' : 'var(--ink-soft)', onClick: () => this.setState({ sleepMetric: k }) })),
+        metricLabel: M.label, base: fv(sm, D.base) + ' ' + M.unit, bandLo: D.lo / mx * 100, bandH: (D.hi - D.lo) / mx * 100, baseP: D.base / mx * 100,
+        nights: (() => { const L = D.vals.length - 1; return D.vals.map((v, j) => { const bad = M.bad === 1 ? v < D.lo : v > D.hi; return { h: v / mx * 100, c: bad ? 'var(--state-watch)' : 'var(--orbi)', o: j === L ? 1 : .55, v: j === L || (L - j) % 3 === 0 ? fv(sm, v) : '', lbl: j === L ? 'anoche' : (L - j) % 2 ? '' : `−${L - j}` }; }); })(),
+        headline: SS.sev > 0 ? `Tu ${SLM[worst].label.toLowerCase()} de anoche salió de tu rango.` : down ? 'Sigues en tu rango, pero llevas tres noches durmiendo menos.' : 'Tu sueño está estable y dentro de tu rango.',
+        body: SS.sev > 0 ? 'Antes de que se note en tu ánimo o tus reacciones: intenta adelantar 30 min tu hora de dormir y baja la luz de tu cabina una hora antes. Si mañana sigue igual, haz una prueba cognitiva.' : down ? 'Todavía no es un problema. Lo menciono porque el sueño suele avisar antes que el cansancio. Una siesta corta hoy puede ayudar.' : 'Nada que hacer. Orbi seguirá vigilando cada noche.' };
+      const lm = cr.sleep.meds && cr.sleep.meds[cr.sleep.meds.length - 1];
+      if (lm) sleep.body += ` Medicación para dormir registrada anoche: ${lm}.`;
+    }
+    const step = S.cog.step, cgs = S.sessions[cr.id] || { pvt: [], dsst: [], matrix: [] }, evs = {}, det = (cr.live && this.detalle[cr.id]) || null, cres = det && det.cogResumen; Object.keys(TESTS).forEach(t => { evs[t] = cogEvalCr(cr, t, cgs[t] || [], cres); });
+    const nivSel = cr.live && cres && cr.cog && cr.cog.niveles ? cr.cog.niveles[S.cogSel] : null;
+    const selT = S.cogSel, T = TESTS[selT], ev = evs[selT], sv = cgs[selT] || [], pvtB = evs.pvt.base, r = S.cog;
+    const fc = (t, v) => v == null ? '—' : t === 'pvt' ? String(Math.round(v)) : (Math.round(v * 10) / 10).toString();
+    const signed = x => `${x >= 0 ? '+' : '−'}${Math.abs(Math.round(x * 100))} %`;
+    const cogCards = Object.keys(TESTS).map(t => { const e = evs[t], X = TESTS[t]; return { name: X.name, code: X.code, stCode: 'COD ' + e.code, sg: sig(e.sev), stLabel: e.code === 8000 ? 'LÍNEA BASE' : SEV_LABEL[e.sev], stBg: tint(e.sev),
+      value: fc(t, e.last), unit: X.unit, delta: e.code === 8000 ? `Línea base: ${e.n} de 3 sesiones` : `${signed(e.raw)} vs tu línea base`,
+      shadow: t === selT ? '0 0 0 1.5px var(--orbi), var(--shadow)' : 'var(--shadow)', onClick: () => this.setState({ cogSel: t }) }; });
+    const cmx = Math.max(...sv, ev.base ? ev.base * 1.25 : 0, 1);
+    const NIV_C = { NORMAL: 'var(--orbi)', VIGILAR: 'var(--state-watch)', ALERTA: 'var(--state-alert)' };
+    const cogSessions = sv.map((v, j) => { let c = 'var(--ink-soft)';
+      if (nivSel && nivSel[j]) c = NIV_C[nivSel[j]] || 'var(--orbi)';                 // nivel oficial de esa sesión (backend)
+      else if (!nivSel && ev.base && j >= 3) { const d = T.better === 'lower' ? (v - ev.base) / ev.base : (ev.base - v) / ev.base; c = d > .2 ? 'var(--state-alert)' : d > .1 ? 'var(--state-watch)' : 'var(--orbi)'; } return { v: fc(selT, v), h: v / cmx * 88, c, lbl: j < 3 ? 'B' + (j + 1) : String(j + 1) }; });
+    const cg = { name: T.name, code: T.code, long: T.long, desc: T.desc, hint: T.better === 'lower' ? 'Más bajo es mejor.' : 'Más alto es mejor.', unit: T.unit, sg: sig(ev.sev), stCode: 'COD ' + ev.code, stLabel: ev.code === 8000 ? 'LÍNEA BASE' : SEV_LABEL[ev.sev], stBg: tint(ev.sev),
+      baseLabel: ev.base ? `Tu línea base · ${fc(selT, ev.base)} ${T.unit}` : 'Línea base en construcción', showBand: !!ev.base, bandLo: ev.base ? ev.base * .9 / cmx * 88 : 0, bandH: ev.base ? ev.base * .2 / cmx * 88 : 0, baseP: ev.base ? ev.base / cmx * 88 : 0,
+      stateText: ev.code === 8000 ? `Aún no hay línea base: se necesitan 3 sesiones y llevas ${ev.n}. Nada aquí indica un problema.` : ev.code === 8001 ? 'Estás dentro de tu línea base.' : ev.code === 8002 ? (cr.live ? 'Vigilar: tu última sesión quedó algo por debajo de tu línea base.' : 'Vigilar: te alejas de tu línea base entre un 10 y un 20 %.') : (cr.live ? 'Alerta: tu última sesión quedó claramente por debajo de tu línea base. Si estabas cansado o distraído, repite la sesión.' : 'Alerta: te alejas más de un 20 % de tu línea base.'), canStart: selT === 'pvt' };
+    const resVals = step === 'result' ? { median: r.med, sg: sig(r.sev), stLabel: r.sev === -1 ? 'LÍNEA BASE' : r.sev === 0 ? 'EN TU LÍNEA BASE' : SEV_LABEL[r.sev], stBg: tint(r.sev), delta: r.base ? signed(r.pct) : '—', lapses: r.lapses, early: r.early,
+      note: r.sev === -1 ? `Esta sesión cuenta para tu línea base. ${r.left > 0 ? 'Faltan ' + r.left + ' más para compararte contigo.' : 'Ya tienes las 3 necesarias.'}` : r.sev === 0 ? `Reaccionaste como en tus días normales, ${first}. Nada que hacer.` : r.sev === 1 ? 'Hoy fuiste un poco más lento que tu línea base. Suele pasar tras dormir poco. Descansa y repite mañana.' : 'Hoy fuiste bastante más lento que tu línea base. No es un diagnóstico: es una señal para descansar antes de tareas críticas y avisar al oficial médico si se repite.' } : {};
+    if (step === 'result') {
+      if (r.familiar) resVals.note = 'Primera sesión: sirve para familiarizarte con la prueba y no cuenta para tu línea base. Tus siguientes 3 sesiones la forman.';
+      if (r.saved && r.sev >= 1) resVals.note += ' Una sesión atípica suele deberse a fatiga o distracción: puedes repetirla.';
+      if (r.saved) resVals.note += ' Guardado en ORBITAL.';
+      if (r.saveError) resVals.note += ' No se pudo guardar en el sistema; inténtalo de nuevo más tarde.';
+    }
+    const pvt = S.pvt, ph = pvt && pvt.phase;
+
+    const isV = !connecting && !cr.noData;
+    const msgs = S.messages.map(m => {
+      const o = m.role === 'orbi', el = this.searchStart ? Math.floor((performance.now() - this.searchStart) / 1000) : 0, ph3 = (m.tick || 0) % 9;
+      return { isOrbi: o, justify: o ? 'flex-start' : 'flex-end', align: o ? 'flex-start' : 'flex-end', text: m.text, hasText: !!m.text, caret: m.status === 'streaming' ? ' ▍' : '',
+        radius: o ? '22px 22px 22px 6px' : '22px 22px 6px 22px', bg: o ? 'var(--surface)' : 'var(--orbi)', fg: o ? 'var(--ink)' : '#fff', shadow: o ? 'var(--shadow)' : '0 10px 26px var(--orbi-glow)',
+        searching: m.status === 'searching', searchText: `Orbi está buscando en la documentación… ${el} s`, d1: ph3 < 3 ? 1 : .3, d2: ph3 >= 3 && ph3 < 6 ? 1 : .3, d3: ph3 >= 6 ? 1 : .3,
+        hasSources: o && m.sources && m.sources.length > 0, sources: m.sources || [] };
+    });
+    const streaming = !!this.streaming;
+
+    return {
+      sysDot: connecting ? 'var(--state-idle)' : offline ? 'var(--state-crit)' : llmOff ? 'var(--state-watch)' : 'var(--state-ok)',
+      sysText: S.retrying ? 'Reintentando…' : connecting ? 'Conectando…' : offline ? 'Sin conexión' : llmOff ? (S.live ? 'Backend en vivo · Orbi no disponible' : 'Datos OK · Orbi no disponible') : S.ended ? (S.live ? `Backend · fin de datos · ${clock}` : `Fin del día grabado · ${clock}`) : (S.live ? `Backend en vivo · ${clock}` : `En vivo · ${clock}`),
+      showRetry: offline, retryLabel: S.retrying ? '…' : 'Reintentar', retry: () => { this.setState({ retrying: true }); if (S.live) this.pollSalud().finally(() => this.setState({ retrying: false })); else setTimeout(() => this.setState({ retrying: false }), 1600); },
+      openHelp: () => this.setState({ showHelp: true }), showHelp: S.showHelp, closeHelp: () => { localStorage.setItem('orbital.onboarded', '1'); this.setState({ showHelp: false }); },
+      orbiEl: React.createElement(OrbiSphere, { color: orbiColor, speaking: S.speaking, reduced, glow: offline ? 0 : A.sev >= 2 ? 1 : A.sev === 1 ? .25 : 0 }),
+      orbiTransform: inChat ? 'translate(-50%, calc(-50% - 50vh + 170px)) scale(.26)' : inDash ? 'translate(-50%,-50%) scale(.92)' : 'translate(-50%,-50%)',
+      orbiFilter: inDash ? 'blur(14px)' : 'none', orbiOpacity: inDash ? .7 : 1,
+      onOrbiClick: () => { if (S.view === 'home') openDash(); },
+      homeOpacity: S.view === 'home' ? 1 : 0, homePE: S.view === 'home' ? 'auto' : 'none',
+      greeting: `${hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'}, ${first}.`,
+      homeLine, homeDot: offline || connecting ? 'var(--state-idle)' : A.sev <= 0 ? (A.sev === -1 ? 'var(--state-idle)' : 'var(--state-ok)') : SEV_VAR[A.sev], homeDotRing: A.sev > 0 ? tint(A.sev) : 'transparent',
+      onStatusClick: () => { const rv = A.reasons[0]; if (rv) this.goDial(order.indexOf(rv.view)); openDash(); },
+      toggleSpeak: () => this.speak(summary), speakLabel: S.speaking ? 'Silenciar a Orbi' : 'Escuchar resumen', speakIcon: S.speaking ? IC.mute : IC.speaker, speaking: S.speaking && S.view === 'home', caption: S.caption,
+      crewList, dialItems, dialLabel: VIEWS[activeKey].label.toUpperCase(),
+      dialOpacity: inChat ? 0 : 1, dialPE: inChat || inDash ? 'none' : 'auto', dialY: inDash ? '40px' : '0px', dialHintO: S.dialPos === 0 && !localStorage.getItem('orbital.dialed') ? 1 : 0,
+      dialDown: e => { this.dx = e.clientX; this.moved = false; },
+      dialMove: e => { if (this.dx == null) return; const d = e.clientX - this.dx; if (Math.abs(d) > 46) { this.shiftDial(d < 0 ? 1 : -1); this.dx = e.clientX; this.moved = true; localStorage.setItem('orbital.dialed', '1'); } },
+      dialUp: () => { this.dx = null; setTimeout(() => { this.moved = false; }, 0); },
+      dialWheel: e => { if (Math.abs(e.deltaX) + Math.abs(e.deltaY) < 20 || this.wh) return; this.wh = true; setTimeout(() => this.wh = false, 350); this.shiftDial((e.deltaX || e.deltaY) > 0 ? 1 : -1); },
+      openChat: () => this.setState({ view: 'chat' }), llmOff,
+      chatOpacity: inChat ? 1 : 0, chatPE: inChat ? 'auto' : 'none', chatY: inChat ? '0px' : '24px', closeAll: this.closeAll, chatScrollRef: this.chatScrollRef,
+      messages: msgs, chipsO: streaming || llmOff ? 0 : 1,
+      suggestions: ['Resume mis signos de hoy', '¿Por qué cambiaste de color?', '¿Cómo puedo dormir mejor?'].map(t => ({ text: t, onClick: () => this.send(t) })),
+      draft: S.draft, onDraft: e => this.setState({ draft: e.target.value }), onDraftKey: e => { if (e.key === 'Enter') this.send(S.draft); },
+      inputDisabled: llmOff, inputPlaceholder: llmOff ? 'Orbi no está disponible ahora' : 'Pregúntale a Orbi',
+      chatContext: `Sobre: ${cr.name}`, sendLabel: streaming ? 'Detener' : 'Enviar', sendBg: streaming ? 'var(--bg)' : 'var(--orbi)', sendFg: streaming ? 'var(--ink)' : '#fff',
+      sendOrStop: () => streaming ? this.stopStream() : this.send(S.draft),
+      sheetY: inDash ? `${S.drag}px` : '110%', sheetTrans: S.dragging ? 'none' : 'transform .5s cubic-bezier(.2,.7,.2,1)',
+      handleDown: e => { this.hy = e.clientY; this.hMoved = false; e.currentTarget.setPointerCapture(e.pointerId); this.setState({ dragging: true }); },
+      handleMove: e => { if (this.hy == null) return; const d = Math.max(0, e.clientY - this.hy); if (d > 4) this.hMoved = true; this.setState({ drag: d }); },
+      handleUp: () => { if (this.hy == null) return; this.hy = null; this.setState(s => s.drag > 110 ? { view: 'home', drag: 0, dragging: false } : { drag: 0, dragging: false }); },
+      handleClick: () => { if (!this.hMoved) this.closeAll(); },
+      dashTitle: VIEWS[activeKey].title, dashSub: activeKey === 'corazon' ? 'Tu cuerpo comparado contigo mismo, no con un promedio.' : activeKey === 'sueno' ? 'Una medición por noche: cuánto tardas en dormirte, cuánto duermes y qué tan bien.' : activeKey === 'cognicion' ? 'Tres pruebas comparadas con tu propia línea base de 3 sesiones.' : 'Próximamente en el sistema de datos.',
+      segItems, banner, legend, legendOpen: S.legend, legendBg: S.legend ? 'var(--surface)' : 'transparent', toggleLegend: () => this.setState(s => ({ legend: !s.legend })), aptSg: sig(aptLive ? codeSev(aptLive.codigo) : A.vitalsSev >= 2 ? 3 : A.vitalsSev), crewHeader: `${cr.name.toUpperCase()} · ${cr.task}`, aptColor: A.vitalsSev <= 0 ? (A.vitalsSev === -1 ? 'var(--state-idle)' : 'var(--state-ok)') : SEV_VAR[A.vitalsSev],
+      aptLabel: cr.noData ? 'Sin datos todavía' : aptLive ? (APT_LABEL[aptLive.codigo] || aptLive.estado) : A.vitalsSev === 0 ? 'Apto' : A.vitalsSev === 1 ? 'Apto · seguimiento' : 'No recomendado para EVA',
+      offline: offline && isV, connecting, noData: !connecting && cr.noData, crewName: first, clock,
+      isVitals: isV && activeKey === 'corazon', isTemp: isV && activeKey === 'temp', isSleep: isV && activeKey === 'sueno', isCog: isV && activeKey === 'cognicion',
+      dataO: offline ? .6 : 1, liveDot: S.ended ? 'var(--state-idle)' : offline ? 'var(--state-idle)' : 'var(--state-ok)',
+      liveText: offline ? `Última lectura · ${clock}` : S.ended ? 'Fin del día grabado' : `En vivo · lectura de las ${clock} · cada 10 min`, ended: S.ended && !offline,
+      restartDemo: () => S.live ? this.restartLive() : this.setState({ idx: 108, ended: false }),
+      cards, hist, histVars, histModes, histVarLabel: VARS[S.histVar].label, histIsDemo: S.histMode !== 'today',
+      aptHeadline, aptMotivos, aptRecs, notifs, noNotifs: notifs.length === 0,
+      tempVal: cr.temp ? cr.temp.toFixed(1) : '—', tempPath: 'M' + Array.from({ length: 15 }, (_, j) => `${j / 14 * 600} ${(90 + Math.sin(j * 1.3 + (cr.seed || 1)) * 22 + Math.cos(j * .7) * 10).toFixed(1)}`).join('L'),
+      sleep,
+      cogMenu: step === 'menu', cogIntroStep: step === 'intro', cogTest: step === 'test', cogResult: step === 'result',
+      moonIcon: IC.sueno, sleepHas: !sleep.none, cgNoStart: !cg.canStart, cogBase: pvtB ? Math.round(pvtB) : '—', cogCards, cg, cogSessions,
+      cogIntro: () => this.setState({ cog: { step: 'intro' } }),
+      cogStart: () => { this.setState({ cog: { step: 'test' }, pvt: { phase: 'wait', trials: [], early: 0 }, confirmExit: false }, () => this.pvtSchedule()); },
+      cogToMenu: () => this.setState({ cog: { step: 'menu' } }),
+      pvtTap: this.pvtTap, stop: e => e.stopPropagation(),
+      pvtRing: ph === 'go' || ph === 'hit' ? 'var(--orbi)' : ph === 'early' ? 'var(--state-watch)' : 'var(--hairline)',
+      pvtFill: ph === 'go' ? 'var(--orbi)' : ph === 'hit' ? 'var(--orbi-deep)' : 'transparent', pvtGlow: ph === 'go' ? '0 0 60px var(--orbi-glow)' : 'none',
+      pvtCounter: ph === 'go' || ph === 'hit' ? Math.round(S.rtNow) : '',
+      pvtMsg: ph === 'wait' ? 'Espera el círculo azul…' : ph === 'go' ? '¡Toca!' : ph === 'hit' ? `${Math.round(pvt.last)} ms` : ph === 'early' ? 'Muy pronto. No pasa nada, sigue.' : '',
+      pvtProgress: pvt ? `${Math.min(8, pvt.trials.length + 1)} / 8` : '', pvtDots: Array.from({ length: 8 }, (_, j) => ({ c: pvt && j < pvt.trials.length ? 'var(--orbi)' : 'var(--hairline)' })),
+      askCancel: () => { this.clearPvt(); this.setState({ confirmExit: true }); },
+      cancelTest: () => { this.clearPvt(); this.setState({ confirmExit: false, pvt: null, cog: { step: 'menu' } }); },
+      resumeTest: () => { this.setState({ confirmExit: false }, () => this.pvtSchedule()); },
+      confirmExit: S.confirmExit, res: resVals
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+/* ORBITAL · tokens de diseño */
+:root{
+  /* superficies y tinta */
+  --bg:#eef1f5;--surface:#ffffff;--surface-translucent:rgba(255,255,255,.72);
+  --ink:#0f2744;--ink-soft:#5b6b84;--hairline:rgba(15,39,68,.1);
+  /* marca (Orbi) */
+  --orbi:#3b6fe0;--orbi-deep:#1e45b0;--orbi-glow:rgba(59,111,224,.35);
+  /* estados: color + forma (NOM-003-SEGOB) */
+  --state-ok:#2fb27a;      /* ÓPTIMO · cuadrado verde · información */
+  --state-watch:#e0a63b;   /* VIGILAR · triángulo amarillo · precaución */
+  --state-alert:#e5533d;   /* ALERTA · triángulo rojo · precaución alta */
+  --state-crit:#d92b3f;    /* CRÍTICO · círculo rojo con diagonal · prohibición */
+  --state-idle:#8aa0bf;    /* SIN DATOS · círculo gris */
+  /* tipografía */
+  --font-display:'Space Grotesk',system-ui,sans-serif;--font-body:'Overpass',system-ui,sans-serif;--font-mono:'JetBrains Mono',ui-monospace,monospace;
+  /* forma y elevación */
+  --radius-card:22px;--radius-sheet:28px;--radius-pill:999px;
+  --shadow:0 12px 36px rgba(15,39,68,.07);--shadow-sheet:0 30px 80px rgba(15,39,68,.14);
+  /* movimiento */
+  --ease:cubic-bezier(.2,.7,.2,1);--dur-fast:.3s;--dur-base:.45s;--dur-slow:.5s;
+}
+:root[data-theme="dark"]{--bg:#07111e;--surface:#0f1d31;--surface-translucent:rgba(10,22,38,.74);--ink:#e4ecf8;--ink-soft:#93a6c2;--hairline:rgba(228,236,248,.1);--shadow:0 12px 36px rgba(0,0,0,.35)}
