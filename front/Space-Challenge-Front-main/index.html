@@ -742,7 +742,7 @@ class Component extends DCLogic {
     // La esfera y el subtítulo siguen a la voz real (avisos críticos, rueda, chat), no a un temporizador.
     const V = this.voz(); if (V && V.voz.alCambiar) this.offVoz = V.voz.alCambiar((on, t) => this.setState(on ? { vozOn: true, caption: t } : { vozOn: false }));
   }
-  componentWillUnmount() { this.offVoz && this.offVoz(); clearTimeout(this.viewT); clearInterval(this.watchT); clearInterval(this.timer); clearInterval(this.pollT); clearTimeout(this.detT); window.removeEventListener('keydown', this.keys); this.clearPvt(); clearInterval(this.streamT); this.streamAbort && this.streamAbort.abort(); this.chatAbort && this.chatAbort.abort(); this.voz() && this.voz().voz.callar(); window.speechSynthesis && speechSynthesis.cancel(); }
+  componentWillUnmount() { this.offVoz && this.offVoz(); clearTimeout(this.viewT); clearInterval(this.watchT); clearInterval(this.timer); clearInterval(this.pollT); clearTimeout(this.detT); window.removeEventListener('keydown', this.keys); this.clearPvt(); clearInterval(this.streamT); this.streamAbort && this.streamAbort.abort(); this.chatAbort && this.chatAbort.abort(); this.voz() && this.voz().voz.callar(true); window.speechSynthesis && speechSynthesis.cancel(); }
   voz() { return window.OrbitalVoz; }
 
   async initLive() {

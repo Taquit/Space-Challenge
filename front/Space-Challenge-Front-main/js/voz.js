@@ -61,10 +61,27 @@
     if (item.url) URL.revokeObjectURL(item.url);
     if (item.opts.alTerminar) { try { item.opts.alTerminar(); } catch (e) { } }
   }
+  /* Pide a Piper solo las próximas PRECARGA frases (la que suena y la siguiente), no toda la cola: el navegador abre
+     como mucho 6 conexiones a la vez con el backend (HTTP/1.1) y Piper sintetiza de una en una. Si cada frase pidiera
+     su audio al entrar, 5-6 /voz en espera llenarían las conexiones y /notificaciones, /resumen y /salud se quedarían
+     esperando en el navegador (más retraso en los avisos y falsos "Sin conexión"). */
+  var PRECARGA = 2;
+  function precargar() {
+    var lista = (actual ? [actual] : []).concat(cola);
+    for (var i = 0; i < lista.length && i < PRECARGA; i++) {
+      var it = lista[i]; if (it.pedido) continue;
+      it.pedido = true;
+      if (piperUsable()) {
+        it.ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        it.audio = pedirAudio(it.texto, it.ctrl && it.ctrl.signal);
+      }
+    }
+  }
   function siguiente() {
     actual = null;
     if (!cola.length) { avisar(false, ''); return; }
     var item = cola.shift(), g = gen; actual = item;
+    precargar();   // pide el audio de esta frase (si aún no) y el de la siguiente
     (item.audio || Promise.resolve(null)).then(function (url) {
       if (g !== gen || item.hecho) return;
       item.url = url;
@@ -144,23 +161,31 @@
       frases.forEach(function (f, i) {
         var o = {}; for (var k in opts) o[k] = opts[k];
         if (i < frases.length - 1) delete o.alTerminar;
-        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        cola.splice(pos + i, 0, { texto: f, opts: o, ctrl: ctrl, audio: piperUsable() ? pedirAudio(f, ctrl && ctrl.signal) : null });
+        cola.splice(pos + i, 0, { texto: f, opts: o, audio: null });
       });
+      precargar();
       if (!actual) siguiente();
     },
-    callar: function () {
-      gen++;
-      var pendientes = (actual ? [actual] : []).concat(cola);
-      cola = []; actual = null;
-      if (audio) { try { audio.pause(); } catch (e) { } audio = null; }
-      if (web) speechSynthesis.cancel();
-      pendientes.forEach(function (it) {
+    // Calla lo que se está diciendo y vacía la cola. Las alertas críticas (opts.forzar) NO se cortan: cambiar de
+    // tripulante, cortar el chat o silenciar no deben perder la alerta de nadie. callar(true) corta todo (al cerrar la app).
+    callar: function (todo) {
+      var esCritica = function (it) { return !!it.opts.forzar; };
+      var conserva = !todo && ((actual && esCritica(actual)) || cola.some(esCritica));
+      var fuera = conserva ? cola.filter(function (it) { return !esCritica(it); }) : cola.slice();
+      cola = conserva ? cola.filter(esCritica) : [];
+      var cortaActual = actual && !(conserva && esCritica(actual));
+      if (cortaActual) {
+        gen++; fuera.unshift(actual); actual = null;
+        if (audio) { try { audio.pause(); } catch (e) { } audio = null; }
+        if (web) speechSynthesis.cancel();
+      }
+      fuera.forEach(function (it) {
         if (it.ctrl && !it.url) it.ctrl.abort();   // el backend ve la desconexión y no la sintetiza
         if (it.audio && !it.url) it.audio.then(function (u) { if (u) URL.revokeObjectURL(u); });
         terminar(it);
       });
-      avisar(false, '');
+      if (conserva) { precargar(); if (!actual) siguiente(); }   // la alerta crítica sigue (o empieza) sin cortarse
+      else avisar(false, '');
     }
   };
 
