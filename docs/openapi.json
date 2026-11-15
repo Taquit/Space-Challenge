@@ -6,6 +6,27 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/tripulantes/codigos": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real",
+          "Códigos"
+        ],
+        "summary": "Lista Codigos",
+        "description": "Catálogo de códigos de respuesta (el mismo de docs/CODIGOS.md).",
+        "operationId": "lista_codigos_tripulantes_codigos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/tripulantes": {
       "get": {
         "tags": [
@@ -89,13 +110,195 @@
         }
       }
     },
+    "/tripulantes/{usuario}/resumen": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real"
+        ],
+        "summary": "Resumen",
+        "description": "Resumen de la(s) medida(s) seleccionada(s): estadísticas, tendencia, valor actual frente al\nrango esperado por el modelo personal del tripulante, interpretación clínica, derivadas y patrones.",
+        "operationId": "resumen_tripulantes__usuario__resumen_get",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          },
+          {
+            "name": "variables",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Medidas separadas por coma (p. ej. pulso,spo2). Vacío = todas",
+              "title": "Variables"
+            },
+            "description": "Medidas separadas por coma (p. ej. pulso,spo2). Vacío = todas"
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 10000,
+                  "minimum": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Últimas N lecturas a resumir (vacío = todo lo transcurrido)",
+              "title": "Limite"
+            },
+            "description": "Últimas N lecturas a resumir (vacío = todo lo transcurrido)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tripulantes/{usuario}/aptitud": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real"
+        ],
+        "summary": "Aptitud",
+        "description": "¿Apto o no apto (saludable)? Combina límites clínicos y el modelo personal. Orientativo.",
+        "operationId": "aptitud_tripulantes__usuario__aptitud_get",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Aptitud"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tripulantes/{usuario}/notificaciones": {
+      "get": {
+        "tags": [
+          "Salud en tiempo real"
+        ],
+        "summary": "Notificaciones Usuario",
+        "description": "Notificaciones generadas hasta ahora (alertas al empeorar el estado de una medida).",
+        "operationId": "notificaciones_usuario_tripulantes__usuario__notificaciones_get",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Usuario"
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Solo las de id mayor a este",
+              "default": 0,
+              "title": "Desde"
+            },
+            "description": "Solo las de id mayor a este"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Notificacion"
+                  },
+                  "title": "Response Notificaciones Usuario Tripulantes  Usuario  Notificaciones Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tripulantes/{usuario}/salud/stream": {
       "get": {
         "tags": [
           "Salud en tiempo real"
         ],
         "summary": "Salud Stream",
-        "description": "Datos en vivo (Server-Sent Events). Eventos:\n\n- `snapshot`: estado inicial (mismo contenido que `GET /tripulantes/{id}/salud`).\n- `lectura`: una lectura nueva `{timestamp, valores}`, cada vez que \"ocurre\" una.\n- `fin`: ya no hay más datos (terminó la reproducción).\n- `: ping`: comentario de keep-alive, el front puede ignorarlo.",
+        "description": "Datos en vivo (Server-Sent Events). Eventos:\n\n- `snapshot`: estado inicial (mismo contenido que `GET /tripulantes/{id}/salud`).\n- `lectura`: una lectura nueva `{timestamp, valores}`, cada vez que \"ocurre\" una.\n- `notificacion`: alerta nueva `{id, usuario, timestamp, severidad, variable, mensaje}`.\n- `fin`: ya no hay más datos (terminó la reproducción).\n- `: ping`: comentario de keep-alive, el front puede ignorarlo.",
         "operationId": "salud_stream_tripulantes__usuario__salud_stream_get",
         "parameters": [
           {
@@ -266,6 +469,74 @@
   },
   "components": {
     "schemas": {
+      "Aptitud": {
+        "properties": {
+          "usuario": {
+            "type": "string",
+            "title": "Usuario"
+          },
+          "apto": {
+            "type": "boolean",
+            "title": "Apto"
+          },
+          "codigo": {
+            "type": "integer",
+            "title": "Codigo",
+            "description": "1001 saludable, 1002 apto con seguimiento, 1010 riesgo, 1011 crítico"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "nivel": {
+            "type": "string",
+            "title": "Nivel",
+            "description": "NORMAL | VIGILAR | ALERTA | CRITICO"
+          },
+          "motivos": {
+            "items": {
+              "$ref": "#/components/schemas/Evento"
+            },
+            "type": "array",
+            "title": "Motivos",
+            "description": "Razones por las que NO es apto (vacío si es apto)"
+          },
+          "observaciones": {
+            "items": {
+              "$ref": "#/components/schemas/Evento"
+            },
+            "type": "array",
+            "title": "Observaciones"
+          },
+          "recomendaciones": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recomendaciones"
+          },
+          "derivadas": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Derivadas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "usuario",
+          "apto",
+          "codigo",
+          "estado",
+          "nivel",
+          "motivos",
+          "observaciones",
+          "recomendaciones",
+          "derivadas"
+        ],
+        "title": "Aptitud"
+      },
       "EstadoSalud": {
         "properties": {
           "usuario": {
@@ -307,6 +578,41 @@
           "simulado"
         ],
         "title": "EstadoSalud"
+      },
+      "Evento": {
+        "properties": {
+          "codigo": {
+            "type": "integer",
+            "title": "Codigo",
+            "description": "Ver docs/CODIGOS.md (familia 5xxx)"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "mensaje": {
+            "type": "string",
+            "title": "Mensaje"
+          },
+          "variable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "codigo",
+          "nombre",
+          "mensaje"
+        ],
+        "title": "Evento"
       },
       "Fuente": {
         "properties": {
@@ -396,6 +702,56 @@
         ],
         "title": "Medicion"
       },
+      "Notificacion": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "integer",
+            "title": "Codigo",
+            "description": "6001 vigilar, 6010 alerta, 6011 crítico, 6020 deriva lenta"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "usuario": {
+            "type": "string",
+            "title": "Usuario"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "severidad": {
+            "type": "string",
+            "title": "Severidad",
+            "description": "VIGILAR | ALERTA | CRITICO"
+          },
+          "variable": {
+            "type": "string",
+            "title": "Variable"
+          },
+          "mensaje": {
+            "type": "string",
+            "title": "Mensaje"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "tipo",
+          "usuario",
+          "timestamp",
+          "severidad",
+          "variable",
+          "mensaje"
+        ],
+        "title": "Notificacion"
+      },
       "Pregunta": {
         "properties": {
           "pregunta": {
@@ -414,6 +770,33 @@
             "title": "Top K",
             "description": "Fragmentos que se pasan al LLM",
             "default": 5
+          },
+          "usuario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usuario",
+            "description": "Tripulante sobre el que se pregunta (activa el resumen y la aptitud)"
+          },
+          "variables": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variables",
+            "description": "Medidas seleccionadas (p. ej. ['pulso']); vacío = todas"
           }
         },
         "type": "object",
@@ -424,6 +807,12 @@
       },
       "Respuesta": {
         "properties": {
+          "codigo": {
+            "type": "integer",
+            "title": "Codigo",
+            "description": "7001 = respuesta generada (ver docs/CODIGOS.md)",
+            "default": 7001
+          },
           "respuesta": {
             "type": "string",
             "title": "Respuesta"

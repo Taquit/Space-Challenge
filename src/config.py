@@ -22,7 +22,7 @@ LMSTUDIO_URL = "http://localhost:1234/v1"
 MODELO_LLM = None    # None = usa el primer modelo cargado en LM Studio
 TEMPERATURA = 0.2
 RAZONAMIENTO = "none"   # LM Studio: "none" apaga el razonamiento de Qwen3.5 (mucho más rápido en CPU)
-MAX_TOKENS_RESPUESTA = 150
+MAX_TOKENS_RESPUESTA = 300
 
 # --- Parte 2: series de tiempo (modelo de NasaSpaceApps-Model) ---
 FISIOLOGICO = RAIZ / "data" / "fisiologico.json"
@@ -34,8 +34,17 @@ VARIABLES_MODELO = {
     "presion_sistolica": "systolic_bp",
     "presion_diastolica": "diastolic_bp",
     "actividad": "actigraphy_activity",
+    "spo2": "spo2",
 }
-MODELOS_USUARIO = RAIZ / "models" / "series" / "usuarios"   # un modelo por usuario: <usuario>.joblib
+# Variables con modelo personal (una por usuario y variable) y su columna del modelo
+VARIABLES_ANALIZADAS = {
+    "pulso": "heart_rate",
+    "spo2": "spo2",
+    "presion_sistolica": "systolic_bp",
+    "presion_diastolica": "diastolic_bp",
+}
+MODELOS_USUARIO = RAIZ / "models" / "series" / "usuarios"   # un modelo por usuario y variable: <usuario>_<variable>.joblib
+NOTIFICACIONES = RAIZ / "data" / "resultados" / "notificaciones.json"
 MIN_ENTRENAMIENTO = 60   # mediciones mínimas del usuario para entrenar su propio modelo
 
 

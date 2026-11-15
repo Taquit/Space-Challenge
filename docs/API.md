@@ -174,3 +174,16 @@ Devuelve `204`. Reinicia la reproducción desde el inicio del día (útil para d
 
 ## Pendiente (próximas partes)
 Endpoints para historial médico base, último evento y predicciones/anomalías, cuando existan esas piezas. La respuesta final combinará esos datos con la documentación.
+
+## Inferencia, aptitud y notificaciones
+
+Todo se calcula **por tripulante con su propio modelo personal** (`models/series/usuarios/<usuario>_<variable>.joblib`,
+generado con `python -m src.series.analizar`). Los límites clínicos (`src/salud/referencias.py`) son solo una red de seguridad. Orientativo, no es diagnóstico médico.
+
+- `GET /tripulantes/{id}/resumen?variables=pulso,spo2&limite=60`: por medida, estadísticas, tendencia, valor actual vs. rango esperado personal, nivel clínico; más magnitudes derivadas (presión de pulso, PAM, índice de choque) y patrones multi-variable. Sin `variables` = todas.
+- `GET /tripulantes/{id}/aptitud`: `{apto, nivel, motivos, observaciones, recomendaciones, derivadas}`.
+- `GET /tripulantes/{id}/notificaciones?desde=<id>`: alertas generadas al empeorar el estado de una medida (sin repetir).
+- SSE `/tripulantes/{id}/salud/stream`: nuevo evento `notificacion` con `{id, usuario, timestamp, severidad, variable, mensaje}`.
+- `POST /preguntar` y `/preguntar/stream`: nuevos campos opcionales `usuario` y `variables`; el agente resume esas medidas y la aptitud usando los datos calculados.
+
+> **Códigos:** todas las respuestas anteriores incluyen códigos numéricos (`1001` saludable, `1010` riesgo, etc.) y los errores llevan `detail.codigo`. Catálogo completo en [`docs/CODIGOS.md`](CODIGOS.md) y en `GET /tripulantes/codigos`.

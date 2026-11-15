@@ -17,8 +17,10 @@ from openai import APIConnectionError
 from pydantic import BaseModel, Field
 
 from src import config
+from src.api.salud import monitor as router_salud_monitor
 from src.api.salud import router as router_salud
 from src.api.sse import sse
+from src.salud import codigos
 
 estado = {}                 # agente cargado en el arranque
 candado = threading.Lock()  # una consulta a la vez: modelo local en CPU
@@ -50,6 +52,18 @@ class Pregunta(BaseModel):
     pregunta: str = Field(..., min_length=2, max_length=1000,
                           examples=["¿Cuál es el límite de dosis de radiación en toda la carrera?"])
     top_k: int = Field(config.TOP_K, ge=1, le=10, description="Fragmentos que se pasan al LLM")
+    usuario: str | None = Field(None, description="Tripulante sobre el que se pregunta (activa el resumen y la aptitud)")
+    variables: list[str] | None = Field(None, description="Medidas seleccionadas (p. ej. ['pulso']); vacío = todas")
+
+
+def contexto_fisio(body):
+    """Texto de contexto fisiológico si la pregunta indica un tripulante; 404 si no existe."""
+    if not body.usuario:
+        return ""
+    if body.usuario not in router_salud_monitor.series:
+        raise HTTPException(404, codigos.error(9001, f"Tripulante '{body.usuario}' no encontrado"))
+    series = router_salud_monitor.series_por_variable(body.usuario)
+    return estado["agente"].estado_fisiologico(body.usuario, body.variables, series)
 
 
 class Fuente(BaseModel):
@@ -58,6 +72,7 @@ class Fuente(BaseModel):
 
 
 class Respuesta(BaseModel):
+    codigo: int = Field(7001, description="7001 = respuesta generada (ver docs/CODIGOS.md)")
     respuesta: str
     fuentes: list[Fuente]
 
@@ -89,9 +104,9 @@ def preguntar(body: Pregunta):
     ag = estado["agente"]
     try:
         with candado:
-            texto, fuentes = ag.preguntar(body.pregunta, body.top_k)
+            texto, fuentes = ag.preguntar(body.pregunta, body.top_k, contexto_fisio(body))
     except APIConnectionError:
-        raise HTTPException(503, "LM Studio no responde. Activa el servidor (lms server start).")
+        raise HTTPException(503, codigos.error(9003, "LM Studio no responde. Activa el servidor (lms server start)."))
     return Respuesta(respuesta=texto, fuentes=fuentes)
 
 
@@ -106,11 +121,12 @@ def preguntar_stream(body: Pregunta):
     - `error`: falló la generación.
     """
     ag = estado["agente"]
+    ctx = contexto_fisio(body)
 
     def eventos():
         with candado:
             try:
-                msgs, frags = ag.preparar(body.pregunta, body.top_k)
+                msgs, frags = ag.preparar(body.pregunta, body.top_k, ctx)
                 yield sse("fuentes", ag.fuentes_de(frags))
                 for t in ag.generar(msgs):
                     yield sse("token", t)

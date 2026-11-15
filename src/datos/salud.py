@@ -47,6 +47,15 @@ class Monitor:
         n = len(self.series[usuario])
         return min(int((time.monotonic() - self.t0) / self.seg), n - 1)
 
+    def series_por_variable(self, usuario, hasta=None):
+        """{variable: [(timestamp, valor), ...]} hasta el instante actual (más antiguo primero)."""
+        i = self.indice_actual(usuario) if hasta is None else hasta
+        out = defaultdict(list)
+        for ts, vals in self.series[usuario][: i + 1]:
+            for var, v in vals.items():
+                out[var].append((ts, v))
+        return dict(out)
+
     def lectura(self, usuario, i):
         ts, valores = self.series[usuario][i]
         return {"timestamp": ts, "valores": valores}

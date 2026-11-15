@@ -29,18 +29,33 @@ SYSTEM = (
 )
 
 
-def estado_fisiologico(max_desv=5):
-    """Resumen de data/resultados/deviations.json (generado por `python -m src.series.analizar`)."""
-    if not config.DESVIACIONES.exists():
+SYSTEM_FISIO = (
+    " Si se incluyen 'Datos del tripulante', úsalos para resumir las medidas y la aptitud: cita solo las "
+    "cifras dadas, no inventes valores, indica si es APTO o NO APTO y aclara que es orientativo. "
+    "Para esos datos no hace falta citar documentos."
+)
+
+
+def estado_fisiologico(usuario=None, variables=None, series=None):
+    """Contexto fisiológico (calculado, no inventado) para el LLM: resumen de las medidas del
+    tripulante frente a SU modelo personal y su decisión de aptitud. `series` = {variable: [(ts, valor)]}."""
+    if not usuario or not series:
         return ""
-    lineas = []
-    for usuario, r in json.loads(config.DESVIACIONES.read_text(encoding="utf-8")).items():
-        s = r["summary"]
-        lineas.append(f"- {usuario}: estado {s['overall_status']}, {s['total_measurements_analyzed']} mediciones, "
-                      f"{s['warning_measurements']} advertencias, {s['anomalous_measurements']} anomalías.")
-        for d in sorted(r["deviations"], key=lambda d: -abs(d["standardized_residual"]))[:max_desv]:
-            lineas.append(f"  · {d['timestamp']} {d['variable']}={d['actual_value']} {d['unit']} "
-                          f"(esperado {d['expected_range']['lower']}-{d['expected_range']['upper']}, {d['status']})")
+    from src.salud import aptitud, inferencia
+    res = inferencia.resumen_global(usuario, series, variables=variables)
+    apt = aptitud.evaluar_aptitud(usuario, series)
+    lineas = [f"Tripulante {usuario} (cada tripulante tiene su propio modelo entrenado con sus datos):"]
+    for v, m in res["medidas"].items():
+        esp = m["esperado_personal"]
+        esp_txt = f", esperado personal {esp['lower']}-{esp['upper']}" if esp else ""
+        lineas.append(f"- {v}: actual {m['actual']} {m['unidad']}{esp_txt}; media {m['media']}, mín {m['minimo']}, "
+                      f"máx {m['maximo']}, tendencia {m['tendencia']}; estado del modelo personal {m['estado_modelo']}; "
+                      f"clínico {m['nivel_clinico']} ({m['interpretacion_clinica']})"
+                      + (f"; deriva lenta {m['deriva']['sentido']} de {m['deriva']['cambio']}" if m['deriva']['detectada'] else "") + ".")
+    for p in res["patrones"]:
+        lineas.append(f"- Patrón: {p['mensaje']}")
+    lineas.append(f"Aptitud: {'APTO' if apt['apto'] else 'NO APTO'} (nivel {apt['nivel']}). "
+                  + " ".join([e["mensaje"] for e in apt["motivos"] + apt["observaciones"]] + apt["recomendaciones"]))
     return "\n".join(lineas)
 
 
@@ -60,14 +75,16 @@ def formatear(frags):
     return "\n\n".join(f"[{f['archivo']}, pág. {pags(f)}]\n{f['texto']}" for f in frags)
 
 
-def preparar(pregunta, k=config.TOP_K):
+def preparar(pregunta, k=config.TOP_K, contexto_fisio=""):
     """Recuperación SIEMPRE obligatoria: no dependemos de que el modelo decida buscar.
+    `contexto_fisio`: texto de `estado_fisiologico()` si la pregunta es sobre un tripulante.
     Devuelve (mensajes para el LLM, fragmentos usados)."""
     frags = buscar(pregunta, k)
+    fisio = f"Datos del tripulante (calculados por el sistema):\n{contexto_fisio}\n\n" if contexto_fisio else ""
     msgs = [
-        {"role": "system", "content": SYSTEM},
+        {"role": "system", "content": SYSTEM + (SYSTEM_FISIO if contexto_fisio else "")},
         {"role": "user",
-         "content": f"Fragmentos:\n{formatear(frags)}\n\nPregunta: {pregunta}"},
+         "content": f"{fisio}Fragmentos:\n{formatear(frags)}\n\nPregunta: {pregunta}"},
     ]
     return msgs, frags
 
@@ -90,9 +107,9 @@ def generar(msgs):
             yield ev.choices[0].delta.content
 
 
-def preguntar(pregunta, k=config.TOP_K):
+def preguntar(pregunta, k=config.TOP_K, contexto_fisio=""):
     """Respuesta completa. Devuelve (texto, fuentes)."""
-    msgs, frags = preparar(pregunta, k)
+    msgs, frags = preparar(pregunta, k, contexto_fisio)
     return "".join(generar(msgs)), fuentes_de(frags)
 
 
