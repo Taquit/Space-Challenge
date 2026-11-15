@@ -8,6 +8,7 @@ import threading
 
 from src import config
 from src.salud import codigos, inferencia
+from src.salud.umbrales import U
 from src.salud import referencias as ref
 
 _lock = threading.Lock()
@@ -15,7 +16,7 @@ _lista = []          # [{id, usuario, timestamp, severidad, variable, mensaje}]
 _ultimo = {}         # (usuario, variable) -> severidad ya notificada
 _procesado = {}      # usuario -> índice de la última lectura procesada
 _sin = {}            # (usuario, variable) -> lecturas seguidas sin deriva
-REARME = 12          # lecturas sin deriva para volver a avisar
+REARME = U["DERIVA_REARME_LECTURAS"]          # lecturas sin deriva para volver a avisar
 _deriva = {}         # (usuario, variable) -> True si ya se avisó de la deriva vigente
 
 _MODELO = {"NORMAL": ref.NORMAL, "SIN_MODELO": ref.NORMAL, "ADVERTENCIA": ref.VIGILAR, "ANOMALIA": ref.ALERTA}

@@ -6,6 +6,8 @@ Los códigos que aparecen entre paréntesis están en [`CODIGOS.md`](CODIGOS.md)
 
 > Orientativo, **no es diagnóstico médico**. Los rangos clínicos son valores estándar de adulto en reposo y deben ser revisados por personal médico.
 
+> Todos los umbrales numéricos de este documento se configuran en `umbrales.env` (ver [`UMBRALES.md`](UMBRALES.md)); las tablas muestran los valores por defecto.
+
 ## Principios
 
 1. **Cada persona tiene su propio modelo.** Por tripulante y por variable hay un modelo entrenado solo con sus datos

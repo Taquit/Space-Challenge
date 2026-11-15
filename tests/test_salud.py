@@ -64,3 +64,14 @@ def test_codigos_estado_y_linea_base():
     r = aptitud.evaluar_aptitud("__nadie__", mala_base)
     assert 5006 in {o["codigo"] for o in r["observaciones"]}
     assert r["apto"] is False      # sostenido en alerta clínica aunque "siempre estuvo así"
+
+
+def test_umbrales_cargan_del_archivo_y_entorno(tmp_path, monkeypatch):
+    from src.salud import umbrales
+    assert umbrales.U["SPO2_ALERTA_MIN"] == 92          # coincide con umbrales.env
+    monkeypatch.setenv("SPO2_ALERTA_MIN", "94")
+    assert umbrales.cargar()["SPO2_ALERTA_MIN"] == 94   # el entorno tiene prioridad
+    monkeypatch.setenv("SPO2_ALERTA_MIN", "abc")
+    import pytest
+    with pytest.raises(ValueError):
+        umbrales.cargar()

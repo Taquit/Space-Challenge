@@ -11,6 +11,8 @@ import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 
+from src.salud.umbrales import U
+
 
 class AnomalyDetector:
     def __init__(self, target_variable="heart_rate", unit="bpm"):
@@ -114,11 +116,11 @@ class AnomalyDetector:
                 iso_anomaly = True
 
         # Clasificación del estado
-        if abs_z >= 3.0 or (abs_z >= 2.5 and iso_anomaly):
+        if abs_z >= U["MODELO_Z_ANOMALIA"] or (abs_z >= U["MODELO_Z_ANOMALIA_ISO"] and iso_anomaly):
             status = "ANOMALIA"
             confidence = round(min(0.99, 0.85 + (abs_z - 3.0) * 0.04), 2)
             explanation = "El valor observado supera el intervalo de predicción individual con significancia estadística mayor a 3 sigmas."
-        elif abs_z >= 2.0:
+        elif abs_z >= U["MODELO_Z_ADVERTENCIA"]:
             status = "ADVERTENCIA"
             confidence = round(min(0.90, 0.70 + (abs_z - 2.0) * 0.15), 2)
             explanation = "Desviación relevante respecto a la línea base e intervalo de pronóstico del participante que requiere seguimiento."

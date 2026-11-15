@@ -11,10 +11,11 @@ from src import config
 from src.datos.salud import UNIDADES
 from src.salud import codigos
 from src.salud import referencias as ref
+from src.salud.umbrales import U
 
-PERSISTENCIA = 3        # lecturas consecutivas fuera de rango para considerarlo sostenido
-BASELINE_N = 15
-UMBRAL_TENDENCIA = 0.05  # unidades/lectura para llamar "ascendente/descendente" (relativo al σ)
+PERSISTENCIA = U["PERSISTENCIA_LECTURAS"]   # lecturas consecutivas fuera de rango para considerarlo sostenido
+BASELINE_N = U["BASELINE_LECTURAS"]
+UMBRAL_TENDENCIA = U["TENDENCIA_UMBRAL"]    # relativo al σ de la ventana
 
 _cache = {"mtime": None, "datos": {}}
 
@@ -52,9 +53,10 @@ def pendiente(valores):
 
 
 # Deriva lenta: cambio acumulado mínimo (unidades) para avisar aunque cada lectura parezca normal
-UMBRAL_DERIVA = {"pulso": 8.0, "spo2": 2.0, "presion_sistolica": 10.0, "presion_diastolica": 6.0}
-VENTANA_DERIVA = 36     # lecturas (~6 h a 1 lectura/10 min) para comparar contra el pasado reciente
-N_PROMEDIO = 6          # lecturas que se promedian para suavizar el ruido
+UMBRAL_DERIVA = {"pulso": U["DERIVA_UMBRAL_PULSO"], "spo2": U["DERIVA_UMBRAL_SPO2"],
+                 "presion_sistolica": U["DERIVA_UMBRAL_SISTOLICA"], "presion_diastolica": U["DERIVA_UMBRAL_DIASTOLICA"]}
+VENTANA_DERIVA = U["DERIVA_VENTANA_LECTURAS"]     # lecturas (~6 h a 1 lectura/10 min) para comparar contra el pasado reciente
+N_PROMEDIO = U["DERIVA_PROMEDIO_LECTURAS"]          # lecturas que se promedian para suavizar el ruido
 
 
 def deriva(variable, serie):
@@ -66,7 +68,7 @@ def deriva(variable, serie):
     if len(vals) < BASELINE_N + N_PROMEDIO:
         return out
     base = vals[:BASELINE_N]
-    umbral = max(UMBRAL_DERIVA.get(variable, 0.0), 2 * pstdev(base))
+    umbral = max(UMBRAL_DERIVA.get(variable, 0.0), U["DERIVA_SIGMAS"] * pstdev(base))
     reciente = mean(vals[-N_PROMEDIO:])
     cambios = [("línea base", reciente - mean(base))]
     if len(vals) >= VENTANA_DERIVA:
@@ -168,16 +170,16 @@ def patrones(actual, estados):
     out = []
     desv = {v for v, e in estados.items() if e in ("ADVERTENCIA", "ANOMALIA")}
     sp = actual.get("spo2")
-    if sp is not None and sp < 95 and "pulso" in desv:
+    if sp is not None and sp < U["PATRON_SPO2_MAX"] and "pulso" in desv:
         out.append(codigos.evento(5004, "Saturación baja con pulso fuera de lo habitual: posible compromiso respiratorio."))
     if {"presion_sistolica", "pulso"} <= desv:
         out.append(codigos.evento(5007, "Presión sistólica y pulso desviados a la vez: posible alteración circulatoria."))
     der = derivadas(actual)
-    if der.get("indice_choque", 0) > 0.9:
+    if der.get("indice_choque", 0) > U["INDICE_CHOQUE_MAX"]:
         out.append(codigos.evento(5008, f"Índice de choque elevado ({der['indice_choque']})."))
-    if "presion_pulso" in der and not 25 <= der["presion_pulso"] <= 60:
+    if "presion_pulso" in der and not U["PRESION_PULSO_MIN"] <= der["presion_pulso"] <= U["PRESION_PULSO_MAX"]:
         out.append(codigos.evento(5009, f"Presión de pulso fuera de rango ({der['presion_pulso']} mmHg)."))
-    if len(desv) >= 3:
+    if len(desv) >= U["PATRON_MIN_VARIABLES"]:
         out.append(codigos.evento(5011, "Tres o más variables se desvían de su patrón personal simultáneamente."))
     return out
 
